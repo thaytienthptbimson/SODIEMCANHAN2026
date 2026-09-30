@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sổ điểm cá nhân giáo viên THCS &amp; THPT</title>
+
+<!--
+  =====================================================================
+  PHẦN MỀM SỔ ĐIỂM CÁ NHÂN CHO GIÁO VIÊN THCS VÀ THPT
+  Theo Thông tư 22/2021/TT-BGDĐT
+  ---------------------------------------------------------------------
+  - Chạy hoàn toàn trên trình duyệt, 1 file HTML duy nhất.
+  - Dữ liệu lưu trong localStorage của trình duyệt trên máy này.
+  - Cần Internet để tải thư viện SheetJS / FileSaver / docx (CDN) khi
+    dùng chức năng Nhập/Xuất file. Các chức năng khác chạy offline.
+  =====================================================================
+-->
+
+<style>
+/* ===================== 1. CSS GIAO DIỆN ===================== */
+:root{
+  --blue-900:#0b2e5c; --blue-800:#0f4187; --blue-700:#1257b3; --blue-600:#1a6fd6;
+  --blue-500:#2b83ea; --blue-100:#e3efff; --blue-50:#f2f7ff;
+  --border:#d5e0ef; --text:#1c2b3f; --muted:#5f7086;
+  --tot:#1a9c5b; --kha:#1a6fd6; --dat:#e0a100; --cd:#d63b3b;
+  --radius:12px; --shadow:0 2px 10px rgba(15,65,135,.08);
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0}
+body{
+  font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:14px; color:var(--text); min-height:100vh;
+  display:flex; flex-direction:column;
+  background:linear-gradient(180deg,#e8f1ff 0,#f5f9ff 280px,#f5f9ff 100%);
+}
+#screens{flex:1; display:flex; flex-direction:column}
+.screen{flex:1}
+.screen.center{display:flex; align-items:center; justify-content:center; padding:24px}
+
+/* ---- Chân trang ---- */
+#siteFooter{
+  text-align:center; padding:12px 16px; font-size:13px; letter-spacing:.2px;
+  color:#fff; background:var(--blue-900);
+}
+
+/* ---- Nút bấm ---- */
+.btn{
+  border:1px solid var(--border); background:#fff; color:var(--blue-700);
+  padding:8px 14px; border-radius:8px; cursor:pointer; font:inherit; font-weight:600;
+  display:inline-flex; align-items:center; gap:6px; transition:.15s;
+}
+.btn:hover{background:var(--blue-50); border-color:#b9cde8}
+.btn.primary{background:var(--blue-600); border-color:var(--blue-600); color:#fff}
+.btn.primary:hover{background:var(--blue-700)}
+.btn.green{background:#16874d; border-color:#16874d; color:#fff}
+.btn.green:hover{background:#0f6e3d}
+.btn.word{background:#2b579a; border-color:#2b579a; color:#fff}
+.btn.word:hover{background:#1f4479}
+.btn.danger{color:#b02323}
+.btn.danger:hover{background:#fff0f0; border-color:#f0b9b9}
+.btn.small{padding:5px 10px; font-size:13px}
+.btn.block{width:100%; justify-content:center; padding:11px 14px; font-size:15px}
+.icon-btn{border:none; background:transparent; cursor:pointer; color:#9aa8bb; font-size:15px; padding:4px 6px; border-radius:6px}
+.icon-btn:hover{background:#ffe9e9; color:#c0392b}
+
+/* ---- Đăng nhập / khóa ---- */
+.login-card{
+  width:min(420px,100%); background:#fff; border-radius:16px; padding:32px 30px;
+  box-shadow:0 10px 40px rgba(15,65,135,.18); text-align:center; border-top:6px solid var(--blue-600);
+}
+.login-card .logo{font-size:46px; line-height:1}
+.login-card h1{margin:10px 0 4px; font-size:22px; color:var(--blue-800); letter-spacing:.5px}
+.login-card .sub{margin:0 0 20px; color:var(--muted); line-height:1.5}
+.login-card label{display:block; text-align:left; font-weight:600; margin-bottom:6px}
+.login-card input[type=password],.login-card input[type=text]{
+  width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:8px; font:inherit; font-size:15px;
+}
+.login-card input:focus{outline:2px solid var(--blue-500); border-color:transparent}
+.login-card .chk{display:flex; align-items:center; gap:6px; font-weight:400; margin:10px 0 14px; color:var(--muted)}
+.err{background:#fff0f0; color:#b02323; border:1px solid #f4c2c2; padding:8px 10px; border-radius:8px; margin-bottom:12px; text-align:left}
+.trial{margin-top:16px; font-size:13px; color:var(--muted)}
+.trial b{color:var(--blue-700)}
+.login-card.locked{border-top-color:#d63b3b}
+.login-card.locked h1{color:#b02323}
+.login-card.locked p{line-height:1.7; color:var(--text)}
+
+/* ---- Thanh trên cùng ---- */
+.topbar{
+  background:linear-gradient(90deg,var(--blue-900),var(--blue-700)); color:#fff;
+  padding:12px 22px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+}
+.topbar .brand{display:flex; align-items:center; gap:10px; margin-right:auto}
+.topbar .brand .logo{font-size:28px}
+.topbar .brand h1{margin:0; font-size:18px; line-height:1.2}
+.topbar .brand small{opacity:.8; display:block; font-size:12px; margin-top:2px}
+.topbar .tb-right{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.topbar .btn{background:rgba(255,255,255,.12); color:#fff; border-color:rgba(255,255,255,.3)}
+.topbar .btn:hover{background:rgba(255,255,255,.25)}
+.badge-trial{background:#ffd75e; color:#5a4200; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700}
+.save-state{font-size:12px; opacity:.85}
+
+.container{max-width:1500px; width:100%; margin:0 auto; padding:16px 18px 24px}
+
+/* ---- Tab + thanh chức năng ---- */
+.tabs-row{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px}
+.tabs{display:flex; gap:6px}
+.tab-btn{
+  border:none; background:#dbe8fa; color:var(--blue-800); padding:10px 22px; border-radius:10px 10px 0 0;
+  cursor:pointer; font:inherit; font-weight:700; font-size:15px;
+}
+.tab-btn.active{background:#fff; color:var(--blue-600); box-shadow:0 -3px 0 var(--blue-600) inset}
+.actions{display:flex; gap:8px; flex-wrap:wrap; padding-bottom:4px}
+
+.card{background:#fff; border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px}
+.card h3{margin:0 0 10px; color:var(--blue-800); font-size:16px}
+.muted{color:var(--muted)}
+
+/* ---- Tab Lớp học ---- */
+.layout{display:grid; grid-template-columns:250px 1fr; gap:14px; align-items:start}
+.side-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px}
+.side-head h3{margin:0}
+#classList{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+#classList li{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 11px;
+  border:1px solid var(--border); border-radius:9px; cursor:pointer; background:#fff;
+}
+#classList li:hover{background:var(--blue-50)}
+#classList li.active{background:var(--blue-100); border-color:var(--blue-500)}
+#classList li b{display:block; color:var(--blue-800)}
+#classList li small{color:var(--muted)}
+#classList li.empty-li{cursor:default; color:var(--muted); justify-content:center}
+.pill{background:var(--blue-600); color:#fff; border-radius:999px; padding:2px 9px; font-size:12px; white-space:nowrap}
+
+.cls-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:10px}
+.cls-head h2{margin:0; font-size:20px; color:var(--blue-800)}
+.cls-head p{margin:3px 0 0; color:var(--muted)}
+.toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.toolbar select{padding:6px 8px; border:1px solid var(--border); border-radius:8px; font:inherit; background:#fff}
+.chk-inline{
+  display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border:1px solid var(--border);
+  border-radius:8px; background:#fff; cursor:pointer; font-weight:600; color:var(--blue-700); font-size:13px; user-select:none;
+}
+.chk-inline:hover{background:var(--blue-50)}
+
+.summary{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; margin:6px 0 12px}
+.sum-card{border:1px solid var(--border); border-radius:10px; padding:9px 12px; background:var(--blue-50)}
+.sum-title{font-weight:700; color:var(--blue-800); margin-bottom:6px; display:flex; justify-content:space-between}
+.sum-title span{font-weight:400; color:var(--muted); font-size:12px}
+.sum-line{display:flex; gap:5px; flex-wrap:wrap}
+
+.table-wrap{
+  overflow:auto; max-height:calc(100vh - 360px); min-height:260px;
+  border:1px solid var(--border); border-radius:10px; background:#fff;
+}
+table.grade{border-collapse:separate; border-spacing:0; font-size:13px; min-width:100%}
+table.grade th,table.grade td{
+  border-right:1px solid #e3eaf4; border-bottom:1px solid #e3eaf4; padding:2px 4px; text-align:center; white-space:nowrap;
+}
+table.grade thead th{
+  position:sticky; top:0; z-index:3; background:var(--blue-100); color:var(--blue-900);
+  box-sizing:border-box; height:32px; padding:0 8px; font-weight:700;
+}
+table.grade thead tr:nth-child(2) th{top:32px; font-size:12px}
+table.grade thead th.grp1{background:#cfe3ff}
+table.grade thead th.grp2{background:#d6e9ff}
+table.grade thead th.grp3{background:#cdeedd}
+table.grade .sticky-1{position:sticky; left:0; z-index:2; background:#fff; width:44px; min-width:44px}
+table.grade .sticky-2{position:sticky; left:44px; z-index:2; background:#fff; text-align:left; box-shadow:2px 0 4px -2px rgba(0,0,0,.12)}
+table.grade thead th.sticky-1,table.grade thead th.sticky-2{z-index:5; background:var(--blue-100)}
+table.grade tbody tr:hover td{background:#f2f7ff}
+table.grade .c-dtb{font-weight:700; color:var(--blue-900); background:#f7fbff; min-width:54px}
+.cell{
+  border:1px solid transparent; background:transparent; font:inherit; color:inherit; border-radius:5px;
+  text-align:center; padding:5px 2px; width:46px;
+}
+.cell:hover{border-color:var(--border)}
+.cell:focus{outline:2px solid var(--blue-500); background:#fff}
+.cell.nm{width:200px; text-align:left; padding-left:6px}
+.cell.dob{width:92px}
+.cell.low{color:#c0392b; font-weight:700}
+.cell.bad{outline:2px solid #d63b3b; background:#fff0f0}
+table.grade.view-hk1 .col-hk2{display:none}
+table.grade.view-hk2 .col-hk1{display:none}
+.hint{font-size:12.5px; color:var(--muted); line-height:1.6; margin:10px 2px 0}
+
+/* ---- Nhãn xếp loại ---- */
+.xl{display:inline-block; min-width:54px; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; text-align:center}
+.xl-tot{background:#dcf5e9; color:#0e7a44}
+.xl-kha{background:#dcebff; color:#0f4fa8}
+.xl-dat{background:#fff0c9; color:#8a5a00}
+.xl-cd{background:#ffe0e0; color:#b02323}
+
+/* ---- Tab Thống kê ---- */
+.stat-card{margin-bottom:14px}
+.stat-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px}
+.stat-head h3{margin:0}
+.stat-head select{padding:6px 8px; border:1px solid var(--border); border-radius:8px; font:inherit}
+.seg{display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden}
+.seg button{border:none; background:#fff; padding:6px 14px; cursor:pointer; font:inherit; font-weight:600; color:var(--blue-700)}
+.seg button.active{background:var(--blue-600); color:#fff}
+.tbl-scroll{overflow:auto}
+table.stat{border-collapse:collapse; width:100%; min-width:760px}
+table.stat th,table.stat td{border:1px solid var(--border); padding:7px 9px; text-align:center}
+table.stat thead th{background:var(--blue-100); color:var(--blue-900)}
+table.stat td:first-child{text-align:left; font-weight:600}
+table.stat tr.total td{background:var(--blue-50); font-weight:800; color:var(--blue-900)}
+table.stat th.h-tot{background:#dcf5e9}
+table.stat th.h-kha{background:#dcebff}
+table.stat th.h-dat{background:#fff0c9}
+table.stat th.h-cd{background:#ffe0e0}
+.bar{display:flex; height:14px; min-width:120px; border-radius:7px; overflow:hidden; background:#eef2f8}
+.bar i{display:block; height:100%}
+.b-tot{background:var(--tot)} .b-kha{background:var(--kha)} .b-dat{background:var(--dat)} .b-cd{background:var(--cd)}
+.empty-box{text-align:center; padding:44px 20px; color:var(--muted)}
+.empty-box .big{font-size:44px}
+.empty-box h3{color:var(--blue-800); margin:8px 0}
+.empty-box .btn{margin:6px 4px 0}
+
+/* ---- Hộp thoại & thông báo ---- */
+.modal-back{position:fixed; inset:0; background:rgba(10,30,60,.5); display:flex; align-items:center; justify-content:center; z-index:100; padding:16px}
+.modal{background:#fff; border-radius:14px; width:min(480px,100%); box-shadow:0 20px 60px rgba(0,0,0,.3); overflow:hidden}
+.modal h3{margin:0; padding:16px 20px; background:var(--blue-50); color:var(--blue-800); border-bottom:1px solid var(--border); font-size:17px}
+.modal-body{padding:16px 20px; max-height:65vh; overflow:auto}
+.modal-foot{padding:12px 20px; display:flex; justify-content:flex-end; gap:8px; border-top:1px solid var(--border); background:#fafcff}
+.form-grid{display:flex; flex-direction:column; gap:12px}
+.form-grid label{display:flex; flex-direction:column; gap:5px; font-weight:600}
+.form-grid input,.form-grid select{padding:9px 10px; border:1px solid var(--border); border-radius:8px; font:inherit; font-weight:400}
+.form-grid input:focus,.form-grid select:focus{outline:2px solid var(--blue-500); border-color:transparent}
+.radio-row{display:flex; gap:8px; align-items:center; font-weight:400 !important; flex-direction:row !important}
+#toastRoot{position:fixed; top:14px; right:14px; z-index:200; display:flex; flex-direction:column; gap:8px; max-width:min(380px,calc(100vw - 28px))}
+.toast{padding:10px 14px; border-radius:10px; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,.2); transition:.3s; line-height:1.4}
+.toast.ok{background:#16874d} .toast.warn{background:#c98a00} .toast.err{background:#c0392b}
+.toast.out{opacity:0; transform:translateX(20px)}
+
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr}
+  .table-wrap{max-height:none}
+  .container{padding:12px}
+}
+</style>
+</head>
+
+<body>
+<div id="toastRoot"></div>
+<div id="modalRoot"></div>
+
+<main id="screens">
+
+  <!-- ============ MÀN HÌNH ĐĂNG NHẬP ============ -->
+  <section id="loginScreen" class="screen center" hidden>
+    <div class="login-card">
+      <div class="logo">📘</div>
+      <h1>SỔ ĐIỂM CÁ NHÂN</h1>
+      <p class="sub">Dành cho giáo viên THCS &amp; THPT<br>Theo Thông tư 22/2021/TT-BGDĐT</p>
+      <label for="pwd">Mật khẩu truy cập</label>
+      <input type="password" id="pwd" autocomplete="off" placeholder="Nhập mật khẩu">
+      <label class="chk"><input type="checkbox" id="showPwd"> Hiện mật khẩu</label>
+      <div id="loginErr" class="err" hidden></div>
+      <button id="btnLogin" class="btn primary block">Đăng nhập</button>
+      <div id="trialInfo" class="trial"></div>
+    </div>
+  </section>
+
+  <!-- ============ MÀN HÌNH KHÓA (HẾT HẠN DÙNG THỬ) ============ -->
+  <section id="lockedScreen" class="screen center" hidden>
+    <div class="login-card locked">
+      <div class="logo">🔒</div>
+      <h1>HẾT THỜI GIAN DÙNG THỬ</h1>
+      <p>Bạn đã sử dụng hết <b>10/10</b> lần dùng thử nên ứng dụng đã bị khóa.<br>
+         Vui lòng liên hệ số ĐT <b>0943.930.787</b> để được hỗ trợ.</p>
+      
+      <!-- Bổ sung phần nhập mật khẩu mở khóa -->
+      <hr style="border:0; border-top:1px solid var(--border); margin: 20px 0 15px;">
+      <label for="unlockPwd">Hoặc nhập mật khẩu để mở khóa:</label>
+      <input type="password" id="unlockPwd" autocomplete="off" placeholder="Nhập mật khẩu truy cập">
+      <div id="unlockErr" class="err" hidden style="margin-top: 10px;"></div>
+      <button id="btnUnlock" class="btn primary block" style="margin-top: 12px;">Mở khóa &amp; Dùng tiếp</button>
+    </div>
+  </section>
+
+  <!-- ============ ỨNG DỤNG CHÍNH ============ -->
+  <section id="appScreen" class="screen" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">📘</span>
+        <div>
+          <h1>SỔ ĐIỂM CÁ NHÂN GIÁO VIÊN</h1>
+          <small id="hdrInfo">THCS &amp; THPT · Thông tư 22/2021/TT-BGDĐT</small>
+        </div>
+      </div>
+      <div class="tb-right">
+        <span class="save-state" id="saveState">Đã lưu tự động ✓</span>
+        <span class="badge-trial" id="trialBadge"></span>
+        <button class="btn small" id="btnSettings">⚙️ Cài đặt</button>
+        <button class="btn small" id="btnBackup" title="Tải file sao lưu dữ liệu (.json)">💾 Sao lưu</button>
+        <button class="btn small" id="btnRestore" title="Khôi phục dữ liệu từ file sao lưu">♻️ Khôi phục</button>
+        <button class="btn small" id="btnLogout">🚪 Đăng xuất</button>
+      </div>
+    </header>
+
+    <div class="container">
+      <div class="tabs-row">
+        <nav class="tabs">
+          <button class="tab-btn active" data-tab="classes">📚 Lớp học</button>
+          <button class="tab-btn" data-tab="stats">📊 Thống kê</button>
+        </nav>
+        <div class="actions">
+          <button class="btn" id="btnImport">📥 Nhập danh sách học sinh (Excel)</button>
+          <button class="btn small" id="btnTemplate" title="Tải file Excel mẫu">Tải file mẫu</button>
+          <button class="btn green" id="btnExportXlsx">📤 Xuất bảng điểm (Excel)</button>
+          <button class="btn word" id="btnExportDocx">📄 Xuất báo cáo (Word)</button>
+        </div>
+      </div>
+
+      <!-- ---------- TAB LỚP HỌC ---------- -->
+      <section id="tab-classes">
+        <div class="layout">
+          <aside class="card">
+            <div class="side-head">
+              <h3>Danh sách lớp</h3>
+              <button class="btn small primary" id="btnAddClass">＋ Thêm lớp</button>
+            </div>
+            <ul id="classList"></ul>
+          </aside>
+
+          <div class="card">
+            <div id="emptyState" class="empty-box" hidden>
+              <div class="big">🏫</div>
+              <h3>Chưa có lớp học nào</h3>
+              <p>Hãy thêm lớp mới hoặc nhập danh sách học sinh từ file Excel<br>(cột: Họ tên, Ngày sinh, Lớp).</p>
+              <button class="btn primary" id="btnAddClass2">＋ Thêm lớp</button>
+              <button class="btn" id="btnImport2">📥 Nhập từ Excel</button>
+            </div>
+
+            <div id="classPanel" hidden>
+              <div class="cls-head">
+                <div>
+                  <h2 id="clsTitle"></h2>
+                  <p id="clsMeta"></p>
+                </div>
+                <div class="toolbar">
+                  <select id="viewSel" title="Chọn học kỳ hiển thị">
+                    <option value="all">Hiển thị: Cả 2 học kỳ</option>
+                    <option value="hk1">Hiển thị: Học kỳ I</option>
+                    <option value="hk2">Hiển thị: Học kỳ II</option>
+                  </select>
+                  <button class="btn small primary" id="btnAddStudent">＋ Thêm học sinh</button>
+                  <label class="chk-inline" title="Tự động xếp danh sách theo bảng chữ cái tiếng Việt (theo tên, rồi đến họ) khi nhập, sửa tên hoặc nhập từ Excel">
+                    <input type="checkbox" id="autoSortChk"> Tự động xếp A → Z
+                  </label>
+                  <button class="btn small" id="btnSort" title="Sắp xếp lại ngay theo bảng chữ cái tiếng Việt">↕ Sắp xếp ngay</button>
+                  <button class="btn small" id="btnEditClass">✏️ Sửa lớp</button>
+                  <button class="btn small danger" id="btnDelClass">🗑 Xóa lớp</button>
+                </div>
+              </div>
+
+              <div class="summary" id="classSummary"></div>
+              <div class="table-wrap" id="tableWrap"></div>
+
+              <p class="hint">
+                <b>Cách tính (TT 22/2021):</b> ĐTBmhk = (TĐĐGtx + 2×ĐĐGgk + 3×ĐĐGck) ÷ (số ĐĐGtx + 5) ·
+                ĐTBmCN = (ĐTBmHKI + 2×ĐTBmHKII) ÷ 3 · làm tròn 1 chữ số thập phân.<br>
+                <b>Xếp loại môn:</b> Tốt ≥ 8,0 · Khá ≥ 6,5 · Đạt ≥ 5,0 · Chưa đạt &lt; 5,0.
+                ĐTB học kỳ chỉ được tính khi đã nhập ĐĐGgk và ĐĐGck; ĐTB cả năm cần đủ ĐTB của 2 học kỳ.<br>
+                <b>Mẹo nhập:</b> gõ điểm rồi nhấn <kbd>Enter</kbd> để xuống dòng dưới, dùng <kbd>↑</kbd> <kbd>↓</kbd> để di chuyển. Có thể gõ dấu phẩy hoặc dấu chấm (7,5 hoặc 7.5).
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- TAB THỐNG KÊ ---------- -->
+      <section id="tab-stats" hidden>
+        <div class="card stat-card">
+          <div class="stat-head">
+            <h3>1. Thống kê theo từng lớp</h3>
+            <select id="statClass"></select>
+          </div>
+          <div id="statClassBody"></div>
+        </div>
+
+        <div class="card stat-card">
+          <div class="stat-head">
+            <h3>2. Bảng tổng hợp tất cả các lớp đang dạy</h3>
+            <div class="seg" id="statTermSeg">
+              <button data-term="hk1" class="active">Học kỳ I</button>
+              <button data-term="hk2">Học kỳ II</button>
+              <button data-term="cn">Cả năm</button>
+            </div>
+          </div>
+          <div id="statAllBody"></div>
+        </div>
+        <p class="hint">Tỷ lệ % được tính trên số học sinh đã có ĐTB môn (đã được xếp loại).</p>
+      </section>
+    </div>
+  </section>
+</main>
+
+<!-- Chân trang: luôn hiển thị ở tất cả các màn hình -->
+<footer id="siteFooter">Bản quyền thuộc về số ĐT: 0943.930.787</footer>
+
+<!-- input ẩn để chọn file -->
+<input type="file" id="fileImport" accept=".xlsx,.xls" hidden>
+<input type="file" id="fileRestore" accept=".json,application/json" hidden>
+
+<!-- ============ THƯ VIỆN NGOÀI (CDN) ============ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
+
+<script>
+(function () {
+'use strict';
+
+/* =====================================================================
+   0. HẰNG SỐ CẤU HÌNH
+   ===================================================================== */
+const APP_PASSWORD = 'tienhuong123@456@';   // Mật khẩu truy cập duy nhất
+const MAX_TRIAL    = 10;                    // Số lần dùng thử tối đa
+const KEY_TRIAL    = 'sdcn_trial_count_v1'; // Khóa localStorage: bộ đếm dùng thử
+const KEY_DATA     = 'sdcn_data_v1';        // Khóa localStorage: dữ liệu ứng dụng
+const MAX_TX       = 4;                     // Số cột ĐĐGtx tối đa (TT22: 2, 3 hoặc 4 lần/học kỳ)
+/* Kiểu sắp xếp danh sách học sinh:
+   true  = xếp theo TÊN (chữ cuối) rồi đến họ đệm — cách xếp danh sách lớp thường dùng ở Việt Nam
+   false = xếp theo họ và tên từ chữ đầu tiên (họ)                                              */
+const SORT_BY_GIVEN_NAME = true;
+
+/* Ngưỡng xếp loại môn học (sắp xếp từ cao xuống thấp). Muốn đổi ngưỡng chỉ cần sửa 'min'. */
+const RANKS = [
+  { key: 'Tốt',      min: 8.0, cls: 'xl-tot', bar: 'b-tot', h: 'h-tot' },
+  { key: 'Khá',      min: 6.5, cls: 'xl-kha', bar: 'b-kha', h: 'h-kha' },
+  { key: 'Đạt',      min: 5.0, cls: 'xl-dat', bar: 'b-dat', h: 'h-dat' },
+  { key: 'Chưa đạt', min: 0,   cls: 'xl-cd',  bar: 'b-cd',  h: 'h-cd'  }
+];
+const TERMS = [
+  { key: 'hk1', label: 'Học kỳ I' },
+  { key: 'hk2', label: 'Học kỳ II' },
+  { key: 'cn',  label: 'Cả năm' }
+];
+
+/* =====================================================================
+   1. KHO LƯU TRỮ (localStorage, có dự phòng bộ nhớ tạm khi bị chặn)
+   ===================================================================== */
+const memStore = {};
+let storageWarned = false;
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return (k in memStore) ? memStore[k] : null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { memStore[k] = v; return false; } }
+};
+
+/* =====================================================================
+   2. TIỆN ÍCH CHUNG
+   ===================================================================== */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const pad2 = n => String(n).padStart(2, '0');
+const isNum = v => typeof v === 'number' && isFinite(v);
+const round1 = x => Math.round(x * 10 + 1e-9) / 10;             // làm tròn 1 chữ số thập phân
+const fmtIn  = v => isNum(v) ? String(v).replace('.', ',') : ''; // hiển thị trong ô nhập (7,5)
+const fmtDTB = v => isNum(v) ? v.toFixed(1).replace('.', ',') : ''; // ĐTB luôn 1 chữ số thập phân
+const pctTxt = (n, d) => d > 0 ? (n * 100 / d).toFixed(1).replace('.', ',') + '%' : '–';
+const numOrBlank = v => isNum(v) ? v : '';
+
+function toast(msg, type = 'ok', ms = 3200) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  $('#toastRoot').appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, ms);
+}
+
+/* Tải file về máy (ưu tiên FileSaver, dự phòng thẻ <a>) */
+function download(blob, name) {
+  if (typeof saveAs === 'function') { saveAs(blob, name); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+/* ---------- Sắp xếp theo bảng chữ cái tiếng Việt ----------
+   Thứ tự chữ cái : a ă â b c d đ e ê g h i k l m n o ô ơ p q r s t u ư v x y
+   Thứ tự dấu thanh: không dấu, huyền, sắc, hỏi, ngã, nặng
+   Cách so sánh   : xét chữ cái trước; chỉ khi hai từ giống hệt nhau về chữ cái mới xét dấu thanh.
+   (Tự cài đặt thay vì dùng localeCompare để kết quả giống nhau trên mọi trình duyệt.) */
+const VI_LETTERS = ['a', 'ă', 'â', 'b', 'c', 'd', 'đ', 'e', 'ê', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'ô', 'ơ', 'p', 'q', 'r', 's', 't', 'u', 'ư', 'v', 'w', 'x', 'y', 'z'];
+const VI_TONE = { '\u0300': 1, '\u0301': 2, '\u0309': 3, '\u0303': 4, '\u0323': 5 };   // huyền, sắc, hỏi, ngã, nặng
+
+/* Tách chuỗi thành các ký tự gốc + dấu phụ (â, ê, ô, ă, ơ, ư) + dấu thanh */
+function viParts(str) {
+  const out = [];
+  for (const ch of String(str == null ? '' : str).toLowerCase().normalize('NFD')) {
+    if (ch >= '\u0300' && ch <= '\u036f') {                    // dấu kết hợp
+      const cur = out[out.length - 1]; if (!cur) continue;
+      if (VI_TONE[ch]) cur.t = VI_TONE[ch]; else cur.m = ch;     // còn lại: dấu mũ, dấu móc, dấu trăng
+    } else out.push({ b: ch, m: '', t: 0 });
+  }
+  return out;
+}
+/* Thứ hạng của 1 chữ cái trong bảng chữ cái tiếng Việt */
+function viRank(p) {
+  let l = p.b;
+  if (p.b === 'a') { if (p.m === '\u0306') l = 'ă'; else if (p.m === '\u0302') l = 'â'; }
+  else if (p.b === 'e' && p.m === '\u0302') l = 'ê';
+  else if (p.b === 'o') { if (p.m === '\u0302') l = 'ô'; else if (p.m === '\u031b') l = 'ơ'; }
+  else if (p.b === 'u' && p.m === '\u031b') l = 'ư';
+  if (/\s/.test(l)) return -1;                                 // khoảng trắng đứng trước chữ cái
+  const i = VI_LETTERS.indexOf(l);
+  return i >= 0 ? i : 100 + l.charCodeAt(0);                   // chữ số, ký tự lạ: xếp sau chữ cái
+}
+function compareVi(a, b) {
+  const A = viParts(a), B = viParts(b), n = Math.min(A.length, B.length);
+  for (let i = 0; i < n; i++) { const d = viRank(A[i]) - viRank(B[i]); if (d) return d; }   // 1) chữ cái
+  if (A.length !== B.length) return A.length - B.length;                                    // từ ngắn hơn đứng trước
+  for (let i = 0; i < n; i++) { const d = A[i].t - B[i].t; if (d) return d; }               // 2) dấu thanh
+  return 0;
+}
+/* So sánh 2 họ tên học sinh: theo tên (chữ cuối), nếu trùng thì xét cả họ tên từ đầu; tên trống xếp cuối */
+function compareStudentNames(a, b) {
+  const na = String(a || '').trim().replace(/\s+/g, ' '), nb = String(b || '').trim().replace(/\s+/g, ' ');
+  if (!na || !nb) return (na ? 0 : 1) - (nb ? 0 : 1);
+  if (SORT_BY_GIVEN_NAME) {
+    const d = compareVi(na.slice(na.lastIndexOf(' ') + 1), nb.slice(nb.lastIndexOf(' ') + 1));
+    if (d) return d;
+  }
+  return compareVi(na, nb);
+}
+/* Sắp xếp học sinh của 1 lớp. Trả về true nếu thứ tự có thay đổi.
+   (Array.sort là sắp xếp ổn định nên các học sinh trùng hẳn tên vẫn giữ thứ tự cũ.) */
+function sortClassStudents(cls) {
+  const before = cls.students.map(s => s.id).join('|');
+  cls.students.sort((a, b) => compareStudentNames(a.name, b.name));
+  return before !== cls.students.map(s => s.id).join('|');
+}
+
+const todayStamp = () => { const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); };
+const fileSafe = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+/* =====================================================================
+   3. XÁC THỰC & DÙNG THỬ
+   ===================================================================== */
+let trialUsed = 0;
+const getTrial  = () => parseInt(store.get(KEY_TRIAL) || '0', 10) || 0;
+function bumpTrial() { const n = getTrial() + 1; store.set(KEY_TRIAL, String(n)); return n; }
+
+function showScreen(id) {
+  ['loginScreen', 'lockedScreen', 'appScreen'].forEach(s => { $('#' + s).hidden = (s !== id); });
+}
+function updateTrialInfo() {
+  const used = Math.min(trialUsed, MAX_TRIAL), left = Math.max(0, MAX_TRIAL - trialUsed);
+  $('#trialInfo').innerHTML = 'Đã dùng <b>' + used + '/' + MAX_TRIAL + '</b> lần dùng thử · còn lại <b>' + left + '</b> lần';
+  $('#trialBadge').textContent = 'Dùng thử: ' + used + '/' + MAX_TRIAL;
+}
+function doLogin() {
+  const box = $('#loginErr');
+  if ($('#pwd').value !== APP_PASSWORD) {
+    box.textContent = 'Mật khẩu không đúng. Vui lòng thử lại.'; box.hidden = false;
+    $('#pwd').select(); return;
+  }
+  box.hidden = true;
+  trialUsed = bumpTrial();                       // đăng nhập thành công = +1 lần dùng
+  if (trialUsed > MAX_TRIAL) { showScreen('lockedScreen'); return; }
+  enterApp();
+}
+
+/* =====================================================================
+   4. MÔ HÌNH DỮ LIỆU
+   ===================================================================== */
+let DB = null;
+let activeTab = 'classes';
+let statClassId = null;
+let statTerm = 'hk1';
+let appBound = false;
+
+function defaultYear() { const d = new Date(), y = d.getFullYear(); return d.getMonth() >= 7 ? y + '-' + (y + 1) : (y - 1) + '-' + y; }
+const newHK = () => ({ tx: Array(MAX_TX).fill(''), gk: '', ck: '' });
+const newStudent = (name = '', dob = '') => ({ id: uid(), name, dob, hk1: newHK(), hk2: newHK() });
+const cleanScore = v => isNum(v) ? v : '';
+
+function defaultDB() {
+  return { settings: { teacher: '', school: '', year: defaultYear(), subject: '', autoSort: true }, view: 'all', currentClassId: null, classes: [] };
+}
+function fixStudent(s) {
+  s.id = s.id || uid(); s.name = s.name || ''; s.dob = s.dob || '';
+  ['hk1', 'hk2'].forEach(k => {
+    const h = s[k] = s[k] || newHK();
+    if (!Array.isArray(h.tx)) h.tx = [];
+    while (h.tx.length < MAX_TX) h.tx.push('');
+    h.tx = h.tx.slice(0, MAX_TX).map(cleanScore);
+    h.gk = cleanScore(h.gk); h.ck = cleanScore(h.ck);
+  });
+}
+function normalizeDB(d) {
+  d.settings = Object.assign({ teacher: '', school: '', year: defaultYear(), subject: '' }, d.settings || {});
+  d.settings.autoSort = d.settings.autoSort !== false;      // mặc định BẬT tự động sắp xếp A → Z
+  d.view = ['all', 'hk1', 'hk2'].includes(d.view) ? d.view : 'all';
+  d.classes = Array.isArray(d.classes) ? d.classes : [];
+  d.classes.forEach(c => {
+    c.id = c.id || uid(); c.name = c.name || 'Lớp'; c.subject = c.subject || '';
+    c.txCount = Math.min(MAX_TX, Math.max(2, parseInt(c.txCount, 10) || 3));
+    c.students = Array.isArray(c.students) ? c.students : [];
+    c.students.forEach(fixStudent);
+    if (d.settings.autoSort) sortClassStudents(c);           // luôn giữ danh sách đúng thứ tự A → Z
+  });
+  if (!d.classes.some(c => c.id === d.currentClassId)) d.currentClassId = d.classes[0] ? d.classes[0].id : null;
+  return d;
+}
+function loadDB() {
+  let d = null;
+  try { const raw = store.get(KEY_DATA); d = raw ? JSON.parse(raw) : null; } catch (e) { d = null; }
+  return normalizeDB(d && typeof d === 'object' ? d : defaultDB());
+}
+let saveTimer = null;
+function saveDB(immediate) {
+  clearTimeout(saveTimer);
+  const doSave = () => {
+    const ok = store.set(KEY_DATA, JSON.stringify(DB));
+    if (!ok && !storageWarned) { storageWarned = true; toast('Trình duyệt không cho lưu dữ liệu lâu dài. Hãy dùng nút "Sao lưu" thường xuyên!', 'warn', 6000); }
+    const t = new Date();
+    $('#saveState').textContent = 'Đã lưu tự động ✓ ' + pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ':' + pad2(t.getSeconds());
+  };
+  if (immediate) doSave(); else { $('#saveState').textContent = 'Đang lưu…'; saveTimer = setTimeout(doSave, 250); }
+}
+window.addEventListener('beforeunload', () => { if (DB) { try { localStorage.setItem(KEY_DATA, JSON.stringify(DB)); } catch (e) {} } });
+
+const curClass  = () => DB.classes.find(c => c.id === DB.currentClassId) || null;
+const findClass = id => DB.classes.find(c => c.id === id) || null;
+
+/* =====================================================================
+   5. TÍNH ĐIỂM & XẾP LOẠI (Thông tư 22/2021/TT-BGDĐT)
+   ===================================================================== */
+function calcHK(hk, txCount) {
+  if (!isNum(hk.gk) || !isNum(hk.ck)) return null;
+  const tx = hk.tx.slice(0, txCount).filter(isNum);
+  const sum = tx.reduce((a, b) => a + b, 0) + 2 * hk.gk + 3 * hk.ck;
+  return round1(sum / (tx.length + 5));
+}
+function calcCN(h1, h2) { return (isNum(h1) && isNum(h2)) ? round1((h1 + 2 * h2) / 3) : null; }
+function computeStudent(st, cls) {
+  const h1 = calcHK(st.hk1, cls.txCount), h2 = calcHK(st.hk2, cls.txCount);
+  return { hk1: h1, hk2: h2, cn: calcCN(h1, h2) };
+}
+const rankOf = v => isNum(v) ? RANKS.find(r => v >= r.min - 1e-9) : null;
+const badge  = v => { const r = rankOf(v); return r ? '<span class="xl ' + r.cls + '">' + r.key + '</span>' : ''; };
+const rankTxt = v => { const r = rankOf(v); return r ? r.key : ''; };
+
+function parseScore(s) {
+  s = String(s == null ? '' : s).trim().replace(',', '.');
+  if (s === '') return '';
+  const n = Number(s);
+  if (!isFinite(n) || n < 0 || n > 10) return NaN;
+  return round1(n);
+}
+
+function classStats(cls, term) {
+  const counts = {}; RANKS.forEach(r => counts[r.key] = 0);
+  let evaluated = 0;
+  cls.students.forEach(st => {
+    const s = computeStudent(st, cls)[term], r = rankOf(s);
+    if (r) { counts[r.key]++; evaluated++; }
+  });
+  return { total: cls.students.length, evaluated, counts };
+}
+function mergeStats(list) {
+  const out = { total: 0, evaluated: 0, counts: {} };
+  RANKS.forEach(r => out.counts[r.key] = 0);
+  list.forEach(s => { out.total += s.total; out.evaluated += s.evaluated; RANKS.forEach(r => out.counts[r.key] += s.counts[r.key]); });
+  return out;
+}
+
+/* =====================================================================
+   6. GIAO DIỆN TAB LỚP HỌC
+   ===================================================================== */
+function renderAll() {
+  renderHeader(); renderClassList(); renderClassPanel();
+  if (activeTab === 'stats') renderStats();
+}
+function renderHeader() {
+  const s = DB.settings;
+  const parts = ['THCS & THPT · TT 22/2021/TT-BGDĐT'];
+  if (s.teacher) parts.unshift('GV: ' + s.teacher);
+  if (s.school) parts.push(s.school);
+  parts.push('Năm học ' + s.year);
+  $('#hdrInfo').textContent = parts.join(' · ');
+}
+function renderClassList() {
+  const ul = $('#classList');
+  if (!DB.classes.length) { ul.innerHTML = '<li class="empty-li">Chưa có lớp nào</li>'; return; }
+  ul.innerHTML = DB.classes.map(c =>
+    '<li data-cid="' + c.id + '" class="' + (c.id === DB.currentClassId ? 'active' : '') + '">' +
+      '<div><b>' + esc(c.name) + '</b><small>' + esc(c.subject || '(chưa đặt môn)') + '</small></div>' +
+      '<span class="pill">' + c.students.length + ' HS</span></li>').join('');
+}
+function renderClassPanel() {
+  const cls = curClass();
+  $('#emptyState').hidden = !!cls; $('#classPanel').hidden = !cls;
+  if (!cls) return;
+  $('#clsTitle').textContent = 'Lớp ' + cls.name + ' — ' + (cls.subject || 'chưa đặt môn');
+  $('#clsMeta').textContent = 'Sĩ số: ' + cls.students.length + ' · ' + cls.txCount + ' cột ĐĐGtx mỗi học kỳ · Năm học ' + DB.settings.year;
+  $('#viewSel').value = DB.view;
+  
+  // KIỂM TRA VÀ GÁN TRẠNG THÁI CHO CHECKBOX TỰ ĐỘNG SẮP XẾP
+  $('#autoSortChk').checked = !!DB.settings.autoSort;
+  
+  $('#tableWrap').innerHTML = gradeTableHTML(cls);
+  renderClassSummary();
+}
+
+function scoreInput(v, f) {
+  return '<input class="cell' + (isNum(v) && v < 5 ? ' low' : '') + '" data-f="' + f + '" inputmode="decimal" autocomplete="off" value="' + esc(fmtIn(v)) + '">';
+}
+function gradeTableHTML(cls) {
+  const n = cls.txCount;
+  let h = '<table class="grade view-' + DB.view + '" id="gradeTable"><thead><tr>';
+  h += '<th rowspan="2" class="sticky-1">STT</th><th rowspan="2" class="sticky-2" style="min-width:210px">Họ và tên</th><th rowspan="2">Ngày sinh</th>';
+  h += '<th colspan="' + (n + 4) + '" class="col-hk1 grp1">HỌC KỲ I</th>';
+  h += '<th colspan="' + (n + 4) + '" class="col-hk2 grp2">HỌC KỲ II</th>';
+  h += '<th colspan="2" class="grp3">CẢ NĂM</th><th rowspan="2"></th></tr><tr>';
+  [['1', 'I'], ['2', 'II']].forEach(([k, roman]) => {
+    for (let i = 1; i <= n; i++) h += '<th class="col-hk' + k + '">ĐĐGtx' + i + '</th>';
+    h += '<th class="col-hk' + k + '">ĐĐGgk</th><th class="col-hk' + k + '">ĐĐGck</th>' +
+         '<th class="col-hk' + k + '">ĐTBmHK' + roman + '</th><th class="col-hk' + k + '">Xếp loại</th>';
+  });
+  h += '<th>ĐTBmCN</th><th>Xếp loại</th></tr></thead><tbody>';
+
+  if (!cls.students.length) {
+    h += '<tr><td colspan="' + (3 + 2 * (n + 4) + 3) + '" style="padding:26px;color:#5f7086">Lớp chưa có học sinh. Nhấn “＋ Thêm học sinh” hoặc “Nhập danh sách học sinh (Excel)”.</td></tr>';
+  }
+  cls.students.forEach((st, i) => {
+    const r = computeStudent(st, cls);
+    h += '<tr data-sid="' + st.id + '"><td class="sticky-1">' + (i + 1) + '</td>';
+    h += '<td class="sticky-2"><input class="cell nm" data-f="name" value="' + esc(st.name) + '" placeholder="Nhập họ và tên"></td>';
+    h += '<td><input class="cell dob" data-f="dob" value="' + esc(st.dob) + '" placeholder="dd/mm/yyyy"></td>';
+    ['hk1', 'hk2'].forEach(k => {
+      const cc = 'col-' + k;
+      for (let j = 0; j < n; j++) h += '<td class="' + cc + '">' + scoreInput(st[k].tx[j], k + '.tx.' + j) + '</td>';
+      h += '<td class="' + cc + '">' + scoreInput(st[k].gk, k + '.gk') + '</td>';
+      h += '<td class="' + cc + '">' + scoreInput(st[k].ck, k + '.ck') + '</td>';
+      h += '<td class="' + cc + ' c-dtb" data-out="' + k + '">' + fmtDTB(r[k]) + '</td>';
+      h += '<td class="' + cc + '" data-outxl="' + k + '">' + badge(r[k]) + '</td>';
+    });
+    h += '<td class="c-dtb" data-out="cn">' + fmtDTB(r.cn) + '</td><td data-outxl="cn">' + badge(r.cn) + '</td>';
+    h += '<td><button class="icon-btn" data-del="' + st.id + '" title="Xóa học sinh">✕</button></td></tr>';
+  });
+  return h + '</tbody></table>';
+}
+
+function renderClassSummary() {
+  const cls = curClass(); if (!cls) return;
+  $('#classSummary').innerHTML = TERMS.map(t => {
+    const s = classStats(cls, t.key);
+    return '<div class="sum-card"><div class="sum-title">' + t.label + '<span>Đã xếp loại ' + s.evaluated + '/' + s.total + '</span></div><div class="sum-line">' +
+      RANKS.map(r => '<span class="xl ' + r.cls + '">' + r.key + ': ' + s.counts[r.key] + '</span>').join('') + '</div></div>';
+  }).join('');
+}
+
+function refreshRow(tr, st) {
+  const cls = curClass(), r = computeStudent(st, cls);
+  ['hk1', 'hk2', 'cn'].forEach(k => {
+    tr.querySelector('[data-out="' + k + '"]').textContent = fmtDTB(r[k]);
+    tr.querySelector('[data-outxl="' + k + '"]').innerHTML = badge(r[k]);
+  });
+}
+function getField(st, f) { const p = f.split('.'); return p.length === 1 ? st[f] : (p[1] === 'tx' ? st[p[0]].tx[+p[2]] : st[p[0]][p[1]]); }
+function setField(st, f, v) { const p = f.split('.'); if (p.length === 1) st[f] = v; else if (p[1] === 'tx') st[p[0]].tx[+p[2]] = v; else st[p[0]][p[1]] = v; }
+
+function bindTable() {
+  const wrap = $('#tableWrap');
+
+  wrap.addEventListener('change', e => {
+    const inp = e.target.closest('input.cell'); if (!inp) return;
+    const cls = curClass(), tr = inp.closest('tr');
+    const st = cls.students.find(s => s.id === tr.dataset.sid); if (!st) return;
+    const f = inp.dataset.f;
+    if (f === 'name' || f === 'dob') {
+      st[f] = inp.value.replace(/\s+/g, ' ').trim(); inp.value = st[f]; saveDB();
+      if (f === 'name' && DB.settings.autoSort) setTimeout(resortKeepFocus, 0);
+      return;
+    }
+    const v = parseScore(inp.value);
+    if (Number.isNaN(v)) {
+      toast('Điểm phải là số từ 0 đến 10.', 'err');
+      inp.classList.add('bad'); setTimeout(() => inp.classList.remove('bad'), 1200);
+      inp.value = fmtIn(getField(st, f));
+      return;
+    }
+    setField(st, f, v);
+    inp.value = fmtIn(v);
+    inp.classList.toggle('low', isNum(v) && v < 5);
+    refreshRow(tr, st); renderClassSummary(); saveDB();
+  });
+
+  wrap.addEventListener('focusin', e => { if (e.target.matches('input.cell')) e.target.select(); });
+
+  wrap.addEventListener('keydown', e => {
+    const inp = e.target.closest('input.cell'); if (!inp) return;
+    let dir = 0;
+    if (e.key === 'Enter' || e.key === 'ArrowDown') dir = 1; else if (e.key === 'ArrowUp') dir = -1; else return;
+    e.preventDefault();
+    const td = inp.closest('td'), tr = td.parentElement, idx = td.cellIndex;
+    const next = dir > 0 ? tr.nextElementSibling : tr.previousElementSibling;
+    const target = next && next.cells[idx] && next.cells[idx].querySelector('input.cell');
+    if (target) target.focus(); else inp.blur();
+  });
+
+  wrap.addEventListener('click', e => {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    const cls = curClass(), st = cls.students.find(s => s.id === b.dataset.del); if (!st) return;
+    if (!confirm('Xóa học sinh "' + (st.name || 'chưa có tên') + '" khỏi lớp ' + cls.name + '?')) return;
+    cls.students = cls.students.filter(s => s.id !== st.id);
+    saveDB(true); renderAll();
+  });
+}
+
+function addStudent() {
+  const cls = curClass(); if (!cls) return;
+  cls.students.push(newStudent());
+  saveDB(true); renderAll();
+  const inputs = $$('#tableWrap input.nm'), last = inputs[inputs.length - 1];
+  if (last) { last.focus(); last.scrollIntoView({ block: 'nearest' }); }
+}
+function sortStudents() {
+  const cls = curClass(); if (!cls) return;
+  const changed = sortClassStudents(cls);
+  saveDB(true); renderAll();
+  toast(changed ? 'Đã sắp xếp danh sách theo bảng chữ cái tiếng Việt.' : 'Danh sách đã đúng thứ tự A → Z.');
+}
+function resortKeepFocus() {
+  const cls = curClass(); if (!cls || !sortClassStudents(cls)) return;
+  const ae = document.activeElement; let keep = null;
+  if (ae && ae.matches && ae.matches('input.cell')) {
+    const tr = ae.closest('tr'); if (tr) keep = { sid: tr.dataset.sid, f: ae.dataset.f };
+  }
+  saveDB(true); renderAll();
+  if (keep) {
+    const el = $('#tableWrap tr[data-sid="' + keep.sid + '"] input[data-f="' + keep.f + '"]');
+    if (el) { el.focus(); el.scrollIntoView({ block: 'nearest' }); }
+  }
+}
+
+/* =====================================================================
+   7. THỐNG KÊ
+   ===================================================================== */
+function barHTML(s) {
+  if (!s.evaluated) return '<span class="muted">–</span>';
+  return '<div class="bar">' + RANKS.map(r => {
+    const c = s.counts[r.key];
+    return c ? '<i class="' + r.bar + '" style="width:' + (c * 100 / s.evaluated) + '%" title="' + r.key + ': ' + c + '"></i>' : '';
+  }).join('') + '</div>';
+}
+function statTableHTML(rows, firstHead) {
+  let h = '<div class="tbl-scroll"><table class="stat"><thead><tr><th rowspan="2">' + firstHead + '</th><th rowspan="2">Sĩ số</th><th rowspan="2">Đã xếp loại</th>';
+  RANKS.forEach(r => h += '<th colspan="2" class="' + r.h + '">' + r.key + '</th>');
+  h += '<th rowspan="2">Biểu đồ</th></tr><tr>' + RANKS.map(r => '<th class="' + r.h + '">SL</th><th class="' + r.h + '">Tỷ lệ</th>').join('') + '</tr></thead><tbody>';
+  rows.forEach(r => {
+    const s = r.st;
+    h += '<tr class="' + (r.total ? 'total' : '') + '"><td>' + esc(r.label) + '</td><td>' + s.total + '</td><td>' + s.evaluated + '</td>';
+    RANKS.forEach(rk => h += '<td>' + s.counts[rk.key] + '</td><td>' + pctTxt(s.counts[rk.key], s.evaluated) + '</td>');
+    h += '<td>' + barHTML(s) + '</td></tr>';
+  });
+  return h + '</tbody></table></div>';
+}
+function renderStats() {
+  const sel = $('#statClass'), body1 = $('#statClassBody'), body2 = $('#statAllBody');
+  if (!DB.classes.length) {
+    sel.innerHTML = '';
+    body1.innerHTML = body2.innerHTML = '<div class="empty-box"><div class="big">📊</div><p>Chưa có dữ liệu. Hãy thêm lớp và nhập điểm để xem thống kê.</p></div>';
+    return;
+  }
+  if (!findClass(statClassId)) statClassId = DB.currentClassId || DB.classes[0].id;
+  sel.innerHTML = DB.classes.map(c => '<option value="' + c.id + '">' + esc(c.name + ' – ' + (c.subject || 'chưa đặt môn')) + '</option>').join('');
+  sel.value = statClassId;
+
+  const cls = findClass(statClassId);
+  body1.innerHTML = statTableHTML(TERMS.map(t => ({ label: t.label, st: classStats(cls, t.key) })), 'Lớp ' + cls.name);
+
+  $$('#statTermSeg button').forEach(b => b.classList.toggle('active', b.dataset.term === statTerm));
+  const all = DB.classes.map(c => ({ label: c.name + ' – ' + (c.subject || 'chưa đặt môn'), st: classStats(c, statTerm) }));
+  all.push({ label: 'TỔNG CỘNG', st: mergeStats(all.map(a => a.st)), total: true });
+  body2.innerHTML = statTableHTML(all, 'Lớp – Môn');
+}
+
+/* =====================================================================
+   8. NHẬP / XUẤT: EXCEL, WORD, SAO LƯU
+   ===================================================================== */
+const hasXLSX = () => typeof XLSX !== 'undefined';
+
+const normKey = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/đ/g, 'd').replace(/[^a-z0-9]/g, '');
+
+function fmtDob(v) {
+  if (v instanceof Date) return pad2(v.getDate()) + '/' + pad2(v.getMonth() + 1) + '/' + v.getFullYear();
+  if (typeof v === 'number') {
+    if (v >= 1900 && v <= 2100) return String(v);
+    const d = hasXLSX() && XLSX.SSF ? XLSX.SSF.parse_date_code(v) : null;
+    if (d) return pad2(d.d) + '/' + pad2(d.m) + '/' + d.y;
+  }
+  const s = String(v == null ? '' : v).trim();
+  const m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  return m ? pad2(+m[3]) + '/' + pad2(+m[2]) + '/' + m[1] : s;
+}
+
+function parseStudentRows(rows) {
+  let hdr = -1, col = { name: -1, dob: -1, cls: -1, ho: -1, ten: -1 };
+  for (let i = 0; i < Math.min(rows.length, 15) && hdr < 0; i++) {
+    const m = { name: -1, dob: -1, cls: -1, ho: -1, ten: -1 };
+    (rows[i] || []).forEach((cell, j) => {
+      const t = normKey(cell); if (!t) return;
+      if (t.includes('ngaysinh') || t === 'ns' || t.includes('ngaythangnamsinh')) m.dob = j;
+      else if (t === 'lop' || t === 'tenlop' || t.startsWith('lop')) m.cls = j;
+      else if (t.includes('hoten') || t.includes('hovaten') || t.includes('tenhocsinh') || t === 'hocsinh') m.name = j;
+      else if (t === 'hodem' || t === 'ho' || t === 'hovadem') m.ho = j;
+      else if (t === 'ten') m.ten = j;
+    });
+    if (m.name >= 0 || (m.ho >= 0 && m.ten >= 0)) { hdr = i; col = m; }
+  }
+  let start = hdr + 1;
+  if (hdr < 0) {
+    const stt = typeof (rows[0] || [])[0] === 'number';
+    col = { name: stt ? 1 : 0, dob: stt ? 2 : 1, cls: stt ? 3 : 2, ho: -1, ten: -1 };
+    start = 0;
+  }
+  const out = [];
+  for (let i = start; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const name = (col.name >= 0 ? String(r[col.name] == null ? '' : r[col.name]) : (String(r[col.ho] || '') + ' ' + String(r[col.ten] || ''))).replace(/\s+/g, ' ').trim();
+    if (!name) continue;
+    out.push({ name, dob: col.dob >= 0 ? fmtDob(r[col.dob]) : '', cls: col.cls >= 0 ? String(r[col.cls] == null ? '' : r[col.cls]).trim() : '' });
+  }
+  return out;
+}
+
+async function handleImportFile(file) {
+  if (!hasXLSX()) return toast('Không tải được thư viện SheetJS. Hãy kiểm tra kết nối Internet rồi tải lại trang.', 'err', 5000);
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    let added = 0, skipped = 0, newCls = 0; const touched = [];
+    wb.SheetNames.forEach(sn => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' });
+      parseStudentRows(rows).forEach(item => {
+        const clsName = item.cls || (wb.SheetNames.length > 1 ? sn : (curClass() ? curClass().name : sn));
+        let cls = DB.classes.find(c => c.name.toLowerCase() === clsName.toLowerCase());
+        if (!cls) {
+          cls = { id: uid(), name: clsName, subject: DB.settings.subject || '', txCount: 3, students: [] };
+          DB.classes.push(cls); newCls++;
+        }
+        if (!touched.includes(cls.id)) touched.push(cls.id);
+        const dup = cls.students.some(s => normKey(s.name) === normKey(item.name) && normKey(s.dob) === normKey(item.dob));
+        if (dup) { skipped++; return; }
+        cls.students.push(newStudent(item.name, item.dob)); added++;
+      });
+    });
+    if (!added && !skipped) return toast('Không tìm thấy học sinh nào trong file. Cần có cột Họ tên, Ngày sinh, Lớp.', 'warn', 5000);
+    if (touched.length) DB.currentClassId = touched[0];
+    if (DB.settings.autoSort) touched.forEach(id => { const c = findClass(id); if (c) sortClassStudents(c); });
+    saveDB(true); renderAll();
+    toast('Đã nhập ' + added + ' học sinh vào ' + touched.length + ' lớp' + (newCls ? ' (tạo mới ' + newCls + ' lớp)' : '') + (skipped ? ', bỏ qua ' + skipped + ' học sinh trùng' : '') + '.' + (DB.settings.autoSort ? ' Đã tự động xếp A → Z.' : ''), 'ok', 5000);
+    if (newCls) toast('Hãy vào “Sửa lớp” để kiểm tra Môn học và số cột ĐĐGtx của lớp mới.', 'warn', 6000);
+  } catch (err) {
+    console.error(err);
+    toast('Không đọc được file Excel. Hãy dùng file .xlsx đúng định dạng.', 'err', 5000);
+  }
+}
+function downloadTemplate() {
+  if (!hasXLSX()) return toast('Không tải được thư viện SheetJS. Hãy kiểm tra kết nối Internet.', 'err', 5000);
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['STT', 'Họ tên', 'Ngày sinh', 'Lớp'],
+    [1, 'Nguyễn Văn An', '15/03/2010', '10A1'],
+    [2, 'Trần Thị Bình', '02/11/2010', '10A1'],
+    [3, 'Lê Hoàng Cường', '21/07/2010', '10A2']
+  ]);
+  ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 14 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'DanhSach');
+  download(new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/octet-stream' }), 'Mau_danh_sach_hoc_sinh.xlsx');
+}
+
+function classSheet(cls) {
+  const n = cls.txCount, blk = n + 4, ncol = 3 + 2 * blk + 2;
+  const aoa = [], merges = [];
+  aoa.push(['BẢNG ĐIỂM MÔN ' + String(cls.subject || '').toUpperCase() + ' - LỚP ' + cls.name]);
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: ncol - 1 } });
+  aoa.push(['Năm học: ' + DB.settings.year + '   |   Giáo viên: ' + (DB.settings.teacher || '..........') + '   |   Trường: ' + (DB.settings.school || '..........')]);
+  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: ncol - 1 } });
+  aoa.push([]);
+  const h1 = ['STT', 'Họ và tên', 'Ngày sinh'], h2 = ['', '', ''];
+  [['HỌC KỲ I', 'I'], ['HỌC KỲ II', 'II']].forEach(([t, roman]) => {
+    h1.push(t); for (let i = 1; i < blk; i++) h1.push('');
+    for (let i = 1; i <= n; i++) h2.push('ĐĐGtx' + i);
+    h2.push('ĐĐGgk', 'ĐĐGck', 'ĐTBmHK' + roman, 'Xếp loại');
+  });
+  h1.push('CẢ NĂM', ''); h2.push('ĐTBmCN', 'Xếp loại');
+  aoa.push(h1, h2);
+  merges.push(
+    { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } }, { s: { r: 3, c: 1 }, e: { r: 4, c: 1 } }, { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } },
+    { s: { r: 3, c: 3 }, e: { r: 3, c: 3 + blk - 1 } },
+    { s: { r: 3, c: 3 + blk }, e: { r: 3, c: 3 + 2 * blk - 1 } },
+    { s: { r: 3, c: 3 + 2 * blk }, e: { r: 3, c: 3 + 2 * blk + 1 } });
+  cls.students.forEach((st, i) => {
+    const r = computeStudent(st, cls), row = [i + 1, st.name, st.dob];
+    ['hk1', 'hk2'].forEach(k => {
+      for (let j = 0; j < n; j++) row.push(numOrBlank(st[k].tx[j]));
+      row.push(numOrBlank(st[k].gk), numOrBlank(st[k].ck), numOrBlank(r[k]), rankTxt(r[k]));
+    });
+    row.push(numOrBlank(r.cn), rankTxt(r.cn));
+    aoa.push(row);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!merges'] = merges;
+  ws['!cols'] = [{ wch: 5 }, { wch: 26 }, { wch: 12 }].concat(Array.from({ length: 2 * blk + 2 }, () => ({ wch: 9 })));
+  const dtbCols = [3 + n + 2, 3 + blk + n + 2, 3 + 2 * blk];
+  for (let r = 5; r < aoa.length; r++) dtbCols.forEach(c => {
+    const cell = ws[XLSX.utils.encode_cell({ r, c })]; if (cell && cell.t === 'n') cell.z = '0.0';
+  });
+  return ws;
+}
+const statRowXlsx = (a, b, s) => [a, b, s.total, s.evaluated].concat(RANKS.reduce((acc, r) =>
+  acc.concat([s.counts[r.key], s.evaluated ? Math.round(s.counts[r.key] * 1000 / s.evaluated) / 10 : '']), []));
+
+function statsSheet(classes) {
+  const aoa = [['THỐNG KÊ KẾT QUẢ HỌC TẬP THEO LỚP'], ['Năm học: ' + DB.settings.year], []];
+  TERMS.forEach(t => {
+    aoa.push([t.label.toUpperCase()]);
+    aoa.push(['Lớp', 'Môn', 'Sĩ số', 'Đã xếp loại'].concat(RANKS.reduce((a, r) => a.concat([r.key + ' (SL)', r.key + ' (%)']), [])));
+    const all = [];
+    classes.forEach(c => { const s = classStats(c, t.key); all.push(s); aoa.push(statRowXlsx(c.name, c.subject, s)); });
+    aoa.push(statRowXlsx('TỔNG CỘNG', '', mergeStats(all))); aoa.push([]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 12 }].concat(Array.from({ length: 8 }, () => ({ wch: 11 })));
+  return ws;
+}
+function exportExcel(scope) {
+  if (!hasXLSX()) return toast('Không tải được thư viện SheetJS. Hãy kiểm tra kết nối Internet rồi tải lại trang.', 'err', 5000);
+  const classes = scope === 'current' ? [curClass()].filter(Boolean) : DB.classes;
+  if (!classes.length) return toast('Chưa có lớp nào để xuất.', 'warn');
+  const wb = XLSX.utils.book_new(), used = [];
+  classes.forEach(c => {
+    let name = (c.name + (c.subject ? ' - ' + c.subject : '')).replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 28) || 'Lop', k = 1, cand = name;
+    while (used.includes(cand.toLowerCase())) cand = name + '_' + (++k);
+    used.push(cand.toLowerCase());
+    XLSX.utils.book_append_sheet(wb, classSheet(c), cand);
+  });
+  XLSX.utils.book_append_sheet(wb, statsSheet(classes), 'Thong ke');
+  const nm = scope === 'current' ? 'Bang_diem_' + fileSafe(classes[0].name) : 'Bang_diem_tat_ca_cac_lop';
+  download(new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/octet-stream' }), nm + '_' + todayStamp() + '.xlsx');
+  toast('Đã xuất bảng điểm ra file Excel.');
+}
+function openExportExcelModal() {
+  if (!DB.classes.length) return toast('Chưa có lớp nào để xuất.', 'warn');
+  const cls = curClass();
+  openModal({
+    title: 'Xuất bảng điểm (Excel)', okText: 'Xuất file',
+    body: '<div class="form-grid"><label class="radio-row"><input type="radio" name="xs" value="current" ' + (cls ? 'checked' : '') + '> Chỉ lớp đang chọn' + (cls ? ' (' + esc(cls.name) + ')' : '') + '</label>' +
+          '<label class="radio-row"><input type="radio" name="xs" value="all" ' + (cls ? '' : 'checked') + '> Tất cả các lớp (mỗi lớp 1 sheet + sheet Thống kê)</label></div>',
+    onOk() { exportExcel(($('input[name="xs"]:checked') || {}).value || 'all'); }
+  });
+}
+
+function loadScript(src) {
+  return new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = () => res(true); s.onerror = () => res(false); document.head.appendChild(s); });
+}
+async function ensureDocx() {
+  if (window.docx) return true;
+  const fallbacks = ['https://unpkg.com/docx@7.8.2/build/index.js', 'https://cdn.jsdelivr.net/npm/docx@8.2.1/build/index.umd.js'];
+  for (const src of fallbacks) { if (await loadScript(src) && window.docx) return true; }
+  return false;
+}
+
+async function exportWord() {
+  if (!DB.classes.length) return toast('Chưa có lớp nào để lập báo cáo.', 'warn');
+  if (!(await ensureDocx())) return toast('Không tải được thư viện docx. Hãy kiểm tra kết nối Internet rồi thử lại.', 'err', 5000);
+  try {
+    const D = window.docx, A = D.AlignmentType, FONT = 'Times New Roman', S = DB.settings;
+
+    const run  = (t, o = {}) => new D.TextRun({ text: String(t), font: FONT, size: o.size || 26, bold: !!o.bold, italics: !!o.italics });
+    const para = (kids, o = {}) => new D.Paragraph({ children: [].concat(kids), alignment: o.align, spacing: { before: o.before || 0, after: o.after == null ? 100 : o.after } });
+    const cell = (t, o = {}) => new D.TableCell({
+      width: { size: o.w, type: D.WidthType.DXA }, verticalAlign: D.VerticalAlign.CENTER,
+      shading: o.fill ? { type: D.ShadingType.CLEAR, color: 'auto', fill: o.fill } : undefined,
+      margins: { top: 40, bottom: 40, left: 70, right: 70 },
+      children: [para(run(t, { size: 20, bold: o.bold }), { align: o.align || A.CENTER, after: 0 })]
+    });
+    const mkTable = (headers, rows, widths, leftCols = []) => new D.Table({
+      width: { size: widths.reduce((a, b) => a + b, 0), type: D.WidthType.DXA }, columnWidths: widths,
+      rows: [new D.TableRow({ tableHeader: true, children: headers.map((h, i) => cell(h, { w: widths[i], bold: true, fill: 'DCE9F9' })) })]
+        .concat(rows.map(r => new D.TableRow({ children: r.c.map((v, i) => cell(v, { w: widths[i], bold: r.bold, fill: r.fill, align: leftCols.includes(i) ? A.LEFT : A.CENTER })) })))
+    });
+
+    const kids = [];
+    kids.push(para(run('BÁO CÁO KẾT QUẢ HỌC TẬP', { size: 32, bold: true }), { align: A.CENTER, after: 60 }));
+    kids.push(para(run('Năm học ' + S.year, { bold: true }), { align: A.CENTER, after: 60 }));
+    kids.push(para(run('(Đánh giá theo Thông tư 22/2021/TT-BGDĐT)', { italics: true, size: 24 }), { align: A.CENTER, after: 200 }));
+    kids.push(para([run('Trường: ', { bold: true }), run(S.school || '..............................')]));
+    kids.push(para([run('Giáo viên: ', { bold: true }), run(S.teacher || '..............................')]));
+    const subjects = Array.from(new Set(DB.classes.map(c => c.subject).filter(Boolean)));
+    kids.push(para([run('Môn dạy: ', { bold: true }), run(subjects.join(', ') || '..............')]));
+    kids.push(para([run('Các lớp phụ trách: ', { bold: true }), run(DB.classes.map(c => c.name).join(', '))], { after: 200 }));
+
+    kids.push(para(run('I. TỔNG HỢP KẾT QUẢ HỌC TẬP CÁC LỚP', { bold: true }), { before: 120 }));
+    const sumHead = ['Lớp – Môn', 'Sĩ số', 'Đã XL'].concat(RANKS.reduce((a, r) => a.concat([r.key + ' (SL)', r.key + ' (%)']), []));
+    const sumW = [1500, 650, 650, 854, 854, 854, 854, 854, 854, 854, 860];
+    const sumRow = (label, s, extra) => Object.assign({ c: [label, s.total, s.evaluated].concat(RANKS.reduce((a, r) => a.concat([s.counts[r.key], pctTxt(s.counts[r.key], s.evaluated)]), [])) }, extra || {});
+    TERMS.forEach((t, i) => {
+      kids.push(para(run((i + 1) + '. ' + t.label, { bold: true, italics: true }), { before: 80, after: 80 }));
+      const all = [], rows = [];
+      DB.classes.forEach(c => { const s = classStats(c, t.key); all.push(s); rows.push(sumRow(c.name + ' – ' + (c.subject || ''), s)); });
+      rows.push(sumRow('Tổng cộng', mergeStats(all), { bold: true, fill: 'F2F7FF' }));
+      kids.push(mkTable(sumHead, rows, sumW, [0]));
+      kids.push(para(run('Tỷ lệ % tính trên số học sinh đã có ĐTB môn (đã xếp loại).', { italics: true, size: 20 }), { before: 60, after: 120 }));
+    });
+
+    kids.push(para(run('II. KẾT QUẢ HỌC TẬP CHI TIẾT THEO TỪNG LỚP', { bold: true }), { before: 200 }));
+    const detHead = ['STT', 'Họ và tên', 'Ngày sinh', 'ĐTBm HKI', 'Xếp loại', 'ĐTBm HKII', 'Xếp loại', 'ĐTBm CN', 'Xếp loại'];
+    const detW = [560, 2800, 1180, 850, 850, 850, 850, 850, 848];
+    DB.classes.forEach((c, i) => {
+      kids.push(para(run((i + 1) + '. Lớp ' + c.name + ' – Môn ' + (c.subject || '') + ' (Sĩ số: ' + c.students.length + ')', { bold: true, italics: true }), { before: 120, after: 80 }));
+      if (!c.students.length) { kids.push(para(run('Lớp chưa có học sinh.', { italics: true }))); return; }
+      const rows = c.students.map((st, k) => {
+        const r = computeStudent(st, c);
+        return { c: [k + 1, st.name, st.dob, fmtDTB(r.hk1), rankTxt(r.hk1), fmtDTB(r.hk2), rankTxt(r.hk2), fmtDTB(r.cn), rankTxt(r.cn)] };
+      });
+      kids.push(mkTable(detHead, rows, detW, [1]));
+      TERMS.forEach(t => {
+        const s = classStats(c, t.key);
+        kids.push(para(run(t.label + ': ' + RANKS.map(r => r.key + ' ' + s.counts[r.key] + ' (' + pctTxt(s.counts[r.key], s.evaluated) + ')').join(', ') + '.', { size: 22 }), { before: 40, after: 20 }));
+      });
+    });
+
+    kids.push(para(run('III. NHẬN XÉT, KIẾN NGHỊ', { bold: true }), { before: 240 }));
+    for (let i = 0; i < 4; i++) kids.push(para(run('.'.repeat(140), { size: 24 }), { after: 60 }));
+    kids.push(para(run('Ngày ...... tháng ...... năm ........', { italics: true }), { align: A.RIGHT, before: 240, after: 60 }));
+    kids.push(para(run('GIÁO VIÊN BỘ MÔN', { bold: true }), { align: A.RIGHT, after: 0 }));
+    kids.push(para(run('(Ký, ghi rõ họ tên)', { italics: true, size: 22 }), { align: A.RIGHT, after: 900 }));
+    kids.push(para(run(S.teacher || '', { bold: true }), { align: A.RIGHT }));
+
+    const doc = new D.Document({
+      creator: S.teacher || 'Giáo viên', title: 'Báo cáo kết quả học tập',
+      sections: [{ properties: { page: { margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } } }, children: kids }]
+    });
+    const blob = await D.Packer.toBlob(doc);
+    download(blob, 'Bao_cao_ket_qua_hoc_tap_' + todayStamp() + '.docx');
+    toast('Đã xuất báo cáo ra file Word.');
+  } catch (err) {
+    console.error(err);
+    toast('Có lỗi khi tạo file Word: ' + (err && err.message ? err.message : err), 'err', 6000);
+  }
+}
+
+function backupData() {
+  download(new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' }), 'So_diem_sao_luu_' + todayStamp() + '.json');
+  toast('Đã tải file sao lưu. Hãy cất file này ở nơi an toàn.');
+}
+async function restoreData(file) {
+  try {
+    const d = JSON.parse(await file.text());
+    if (!d || !Array.isArray(d.classes)) throw new Error('bad');
+    if (!confirm('Khôi phục sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại bằng dữ liệu trong file. Tiếp tục?')) return;
+    DB = normalizeDB(d); saveDB(true); renderAll(); toast('Đã khôi phục dữ liệu từ file sao lưu.');
+  } catch (e) { toast('File sao lưu không hợp lệ.', 'err'); }
+}
+
+/* =====================================================================
+   9. HỘP THOẠI & CÀI ĐẶT
+   ===================================================================== */
+function openModal(o) {
+  const root = $('#modalRoot');
+  root.innerHTML = '<div class="modal-back"><div class="modal" role="dialog" aria-modal="true"><h3>' + esc(o.title) + '</h3><div class="modal-body">' + o.body +
+    '</div><div class="modal-foot"><button class="btn" data-m="cancel">Hủy</button><button class="btn primary" data-m="ok">' + esc(o.okText || 'Lưu') + '</button></div></div></div>';
+  const close = () => { root.innerHTML = ''; document.removeEventListener('keydown', onKey); };
+  const ok = () => { if (o.onOk && o.onOk() === false) return; close(); };
+  function onKey(e) {
+    if (e.key === 'Escape') close();
+    else if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'radio') { e.preventDefault(); ok(); }
+  }
+  root.querySelector('[data-m="ok"]').onclick = ok;
+  root.querySelector('[data-m="cancel"]').onclick = close;
+  root.querySelector('.modal-back').addEventListener('mousedown', e => { if (e.target.classList.contains('modal-back')) close(); });
+  document.addEventListener('keydown', onKey);
+  const first = root.querySelector('input:not([type=radio]),select'); if (first) first.focus();
+}
+
+function openClassModal(cls) {
+  const edit = !!cls, c = cls || { name: '', subject: DB.settings.subject || '', txCount: 3 };
+  openModal({
+    title: edit ? 'Sửa thông tin lớp' : 'Thêm lớp mới', okText: edit ? 'Lưu' : 'Thêm lớp',
+    body: '<div class="form-grid">' +
+      '<label>Tên lớp<input id="mName" value="' + esc(c.name) + '" placeholder="VD: 10A1"></label>' +
+      '<label>Môn học<input id="mSubject" value="' + esc(c.subject) + '" placeholder="VD: Toán"></label>' +
+      '<label>Số cột ĐĐGtx mỗi học kỳ<select id="mTx">' + [2, 3, 4].map(n => '<option value="' + n + '"' + (n === c.txCount ? ' selected' : '') + '>' + n + ' cột</option>').join('') + '</select></label>' +
+      '<div class="hint" style="margin:0">Theo TT 22/2021: môn học từ 35 tiết/năm trở xuống: 2 lần/học kỳ; trên 35 đến 70 tiết: 3 lần; trên 70 tiết: 4 lần.</div></div>',
+    onOk() {
+      const name = $('#mName').value.trim(), subject = $('#mSubject').value.trim(), tx = parseInt($('#mTx').value, 10);
+      if (!name) { toast('Vui lòng nhập tên lớp.', 'warn'); return false; }
+      if (edit) Object.assign(cls, { name, subject, txCount: tx });
+      else { const n = { id: uid(), name, subject, txCount: tx, students: [] }; DB.classes.push(n); DB.currentClassId = n.id; }
+      saveDB(true); renderAll();
+    }
+  });
+}
+function openSettingsModal() {
+  const s = DB.settings;
+  openModal({
+    title: 'Cài đặt thông tin giáo viên',
+    body: '<div class="form-grid">' +
+      '<label>Họ và tên giáo viên<input id="sTeacher" value="' + esc(s.teacher) + '"></label>' +
+      '<label>Trường<input id="sSchool" value="' + esc(s.school) + '"></label>' +
+      '<label>Năm học<input id="sYear" value="' + esc(s.year) + '" placeholder="VD: 2026-2027"></label>' +
+      '<label>Môn dạy mặc định (dùng cho lớp tạo khi nhập Excel)<input id="sSubject" value="' + esc(s.subject) + '" placeholder="VD: Toán"></label></div>',
+    onOk() {
+      Object.assign(DB.settings, { teacher: $('#sTeacher').value.trim(), school: $('#sSchool').value.trim(), year: $('#sYear').value.trim() || defaultYear(), subject: $('#sSubject').value.trim() });
+      saveDB(true); renderAll();
+    }
+  });
+}
+
+/* =====================================================================
+   10. KHỞI ĐỘNG & GẮN SỰ KIỆN
+   ===================================================================== */
+function switchTab(tab) {
+  activeTab = tab;
+  $$('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  $('#tab-classes').hidden = tab !== 'classes'; $('#tab-stats').hidden = tab !== 'stats';
+  if (tab === 'stats') renderStats();
+}
+function triggerImport() { if (!hasXLSX()) return toast('Không tải được thư viện SheetJS. Hãy kiểm tra kết nối Internet.', 'err', 5000); $('#fileImport').click(); }
+
+function bindApp() {
+  if (appBound) return; appBound = true;
+  $$('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  $('#classList').addEventListener('click', e => {
+    const li = e.target.closest('li[data-cid]'); if (!li) return;
+    DB.currentClassId = li.dataset.cid; saveDB(); renderClassList(); renderClassPanel();
+  });
+  $('#btnAddClass').onclick = $('#btnAddClass2').onclick = () => openClassModal(null);
+  $('#btnEditClass').onclick = () => { const c = curClass(); if (c) openClassModal(c); };
+  $('#btnDelClass').onclick = () => {
+    const c = curClass(); if (!c) return;
+    if (!confirm('Xóa lớp "' + c.name + '" cùng toàn bộ ' + c.students.length + ' học sinh và điểm số? Thao tác này không thể hoàn tác.')) return;
+    DB.classes = DB.classes.filter(x => x.id !== c.id);
+    DB.currentClassId = DB.classes[0] ? DB.classes[0].id : null;
+    saveDB(true); renderAll();
+  };
+  $('#btnAddStudent').onclick = addStudent;
+  $('#btnSort').onclick = sortStudents;
+  $('#viewSel').onchange = e => { DB.view = e.target.value; saveDB(); const t = $('#gradeTable'); if (t) t.className = 'grade view-' + DB.view; };
+  
+  // LIÊN KẾT SỰ KIỆN CHO CHECKBOX SẮP XẾP TỰ ĐỘNG
+  $('#autoSortChk').onchange = e => {
+    DB.settings.autoSort = e.target.checked;
+    saveDB();
+    if (DB.settings.autoSort) {
+      sortStudents();
+    }
+  };
+  
+  bindTable();
+
+  $('#btnImport').onclick = $('#btnImport2').onclick = triggerImport;
+  $('#btnTemplate').onclick = downloadTemplate;
+  $('#fileImport').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleImportFile(f); };
+  $('#btnExportXlsx').onclick = openExportExcelModal;
+  $('#btnExportDocx').onclick = exportWord;
+
+  $('#btnSettings').onclick = openSettingsModal;
+  $('#btnBackup').onclick = backupData;
+  $('#btnRestore').onclick = () => $('#fileRestore').click();
+  $('#btnLogout').onclick = () => {
+    saveDB(true); DB = null; $('#pwd').value = ''; showScreen('loginScreen'); updateTrialInfo(); $('#pwd').focus();
+  };
+
+  $('#statClass').onchange = e => { statClassId = e.target.value; renderStats(); };
+  $('#statTermSeg').addEventListener('click', e => { const b = e.target.closest('button[data-term]'); if (b) { statTerm = b.dataset.term; renderStats(); } });
+}
+
+function enterApp() {
+  DB = loadDB();
+  bindApp();
+  showScreen('appScreen');
+  updateTrialInfo();
+  switchTab('classes');
+  renderAll();
+}
+
+// Hàm xử lý mở khóa
+function doUnlock() {
+  const box = $('#unlockErr');
+  if ($('#unlockPwd').value !== APP_PASSWORD) {
+    box.textContent = 'Mật khẩu không đúng. Vui lòng thử lại.'; 
+    box.hidden = false;
+    $('#unlockPwd').select(); 
+    return;
+  }
+  box.hidden = true;
+  $('#unlockPwd').value = '';
+  
+  // Reset lại bộ đếm dùng thử về 0 và tính lại từ lần 1
+  store.set(KEY_TRIAL, '0');
+  trialUsed = bumpTrial(); 
+  
+  // Vào ứng dụng
+  enterApp();
+}
+
+function init() {
+  $('#btnLogin').onclick = doLogin;
+  $('#pwd').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  $('#showPwd').onchange = e => { $('#pwd').type = e.target.checked ? 'text' : 'password'; };
+
+  // Bổ sung sự kiện cho nút Mở khóa ở màn hình khóa
+  $('#btnUnlock').onclick = doUnlock;
+  $('#unlockPwd').addEventListener('keydown', e => { if (e.key === 'Enter') doUnlock(); });
+
+  trialUsed = bumpTrial();
+  if (trialUsed > MAX_TRIAL) { showScreen('lockedScreen'); return; }
+  updateTrialInfo();
+  showScreen('loginScreen');
+  $('#pwd').focus();
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+})();
+</script>
+</body>
+</html>
