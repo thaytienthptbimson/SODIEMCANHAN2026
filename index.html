@@ -753,7 +753,7 @@ function renderClassSummary() {
   $('#classSummary').innerHTML = TERMS.map(t => {
     const s = classStats(cls, t.key);
     return '<div class="sum-card"><div class="sum-title">' + t.label + '<span>Đã xếp loại ' + s.evaluated + '/' + s.total + '</span></div><div class="sum-line">' +
-      RANKS.map(r => '<span class="xl ' + r.cls + '">' + r.key + ': ' + s.counts[r.key] + '</span>').join('') + '</div></div>';
+      RANKS.map(r => '<span class="xl ' + r.cls + '">' + r.key + '</span>: ' + s.counts[r.key]).join('') + '</div></div>';
   }).join('');
 }
 
@@ -963,28 +963,44 @@ async function handleImportFile(file) {
     toast('Không đọc được file Excel. Hãy dùng file .xlsx đúng định dạng.', 'err', 5000);
   }
 }
+
+// Đã cập nhật theo yêu cầu
 function downloadTemplate() {
   if (!hasXLSX()) return toast('Không tải được thư viện SheetJS. Hãy kiểm tra kết nối Internet.', 'err', 5000);
   const ws = XLSX.utils.aoa_to_sheet([
-    ['STT', 'Họ tên', 'Ngày sinh', 'Lớp'],
-    [1, 'Nguyễn Văn An', '15/03/2010', '10A1'],
-    [2, 'Trần Thị Bình', '02/11/2010', '10A1'],
-    [3, 'Lê Hoàng Cường', '21/07/2010', '10A2']
+    ['STT', 'Họ và đệm', 'Tên', 'Ngày sinh', 'Lớp'],
+    [1, 'Nguyễn Văn', 'An', '15/03/2010', '10A1'],
+    [2, 'Trần Thị', 'Bình', '02/11/2010', '10A1'],
+    [3, 'Lê Hoàng', 'Cường', '21/07/2010', '10A2']
   ]);
-  ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 14 }, { wch: 10 }];
+  ws['!cols'] = [{ wch: 6 }, { wch: 20 }, { wch: 10 }, { wch: 14 }, { wch: 10 }];
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'DanhSach');
   download(new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/octet-stream' }), 'Mau_danh_sach_hoc_sinh.xlsx');
 }
 
+// Hàm phụ trợ tách Họ và Tên mới được thêm
+function splitName(fullName) {
+  const parts = String(fullName || '').trim().split(' ');
+  if (parts.length <= 1) return { ho: '', ten: parts[0] || '' };
+  const ten = parts.pop();
+  return { ho: parts.join(' '), ten };
+}
+
+// Đã cập nhật theo yêu cầu (Thêm cột cho Họ và Tên)
 function classSheet(cls) {
-  const n = cls.txCount, blk = n + 4, ncol = 3 + 2 * blk + 2;
+  const n = cls.txCount, blk = n + 4, ncol = 4 + 2 * blk + 2; // Tăng số lượng cột lên 1 (do tách cột Họ Tên)
   const aoa = [], merges = [];
+  
   aoa.push(['BẢNG ĐIỂM MÔN ' + String(cls.subject || '').toUpperCase() + ' - LỚP ' + cls.name]);
   merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: ncol - 1 } });
+  
   aoa.push(['Năm học: ' + DB.settings.year + '   |   Giáo viên: ' + (DB.settings.teacher || '..........') + '   |   Trường: ' + (DB.settings.school || '..........')]);
   merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: ncol - 1 } });
+  
   aoa.push([]);
-  const h1 = ['STT', 'Họ và tên', 'Ngày sinh'], h2 = ['', '', ''];
+  
+  // Header chia 2 cột: Họ và đệm | Tên
+  const h1 = ['STT', 'Họ và đệm', 'Tên', 'Ngày sinh'], h2 = ['', '', '', ''];
   [['HỌC KỲ I', 'I'], ['HỌC KỲ II', 'II']].forEach(([t, roman]) => {
     h1.push(t); for (let i = 1; i < blk; i++) h1.push('');
     for (let i = 1; i <= n; i++) h2.push('ĐĐGtx' + i);
@@ -992,13 +1008,22 @@ function classSheet(cls) {
   });
   h1.push('CẢ NĂM', ''); h2.push('ĐTBmCN', 'Xếp loại');
   aoa.push(h1, h2);
+  
   merges.push(
-    { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } }, { s: { r: 3, c: 1 }, e: { r: 4, c: 1 } }, { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } },
-    { s: { r: 3, c: 3 }, e: { r: 3, c: 3 + blk - 1 } },
-    { s: { r: 3, c: 3 + blk }, e: { r: 3, c: 3 + 2 * blk - 1 } },
-    { s: { r: 3, c: 3 + 2 * blk }, e: { r: 3, c: 3 + 2 * blk + 1 } });
+    { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } }, // STT
+    { s: { r: 3, c: 1 }, e: { r: 4, c: 1 } }, // Họ và đệm
+    { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } }, // Tên
+    { s: { r: 3, c: 3 }, e: { r: 4, c: 3 } }, // Ngày sinh
+    { s: { r: 3, c: 4 }, e: { r: 3, c: 4 + blk - 1 } },
+    { s: { r: 3, c: 4 + blk }, e: { r: 3, c: 4 + 2 * blk - 1 } },
+    { s: { r: 3, c: 4 + 2 * blk }, e: { r: 3, c: 4 + 2 * blk + 1 } }
+  );
+  
   cls.students.forEach((st, i) => {
-    const r = computeStudent(st, cls), row = [i + 1, st.name, st.dob];
+    const r = computeStudent(st, cls);
+    const nameParts = splitName(st.name); // Tách Họ đệm và Tên
+    const row = [i + 1, nameParts.ho, nameParts.ten, st.dob];
+    
     ['hk1', 'hk2'].forEach(k => {
       for (let j = 0; j < n; j++) row.push(numOrBlank(st[k].tx[j]));
       row.push(numOrBlank(st[k].gk), numOrBlank(st[k].ck), numOrBlank(r[k]), rankTxt(r[k]));
@@ -1006,15 +1031,23 @@ function classSheet(cls) {
     row.push(numOrBlank(r.cn), rankTxt(r.cn));
     aoa.push(row);
   });
+  
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!merges'] = merges;
-  ws['!cols'] = [{ wch: 5 }, { wch: 26 }, { wch: 12 }].concat(Array.from({ length: 2 * blk + 2 }, () => ({ wch: 9 })));
-  const dtbCols = [3 + n + 2, 3 + blk + n + 2, 3 + 2 * blk];
-  for (let r = 5; r < aoa.length; r++) dtbCols.forEach(c => {
-    const cell = ws[XLSX.utils.encode_cell({ r, c })]; if (cell && cell.t === 'n') cell.z = '0.0';
-  });
+  // Thiết lập độ rộng cột (Cột Họ đệm: 18, Cột Tên: 8)
+  ws['!cols'] = [{ wch: 5 }, { wch: 18 }, { wch: 8 }, { wch: 12 }].concat(Array.from({ length: 2 * blk + 2 }, () => ({ wch: 9 })));
+  
+  // Định dạng lại các cột ĐTB (Lệch sang phải 1 đơn vị do thêm cột Tên)
+  const dtbCols = [4 + n + 2, 4 + blk + n + 2, 4 + 2 * blk]; 
+  for (let r = 5; r < aoa.length; r++) {
+    dtbCols.forEach(c => {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })]; 
+      if (cell && cell.t === 'n') cell.z = '0.0';
+    });
+  }
   return ws;
 }
+
 const statRowXlsx = (a, b, s) => [a, b, s.total, s.evaluated].concat(RANKS.reduce((acc, r) =>
   acc.concat([s.counts[r.key], s.evaluated ? Math.round(s.counts[r.key] * 1000 / s.evaluated) / 10 : '']), []));
 
