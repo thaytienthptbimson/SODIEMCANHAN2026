@@ -14,7 +14,6 @@
   - Dữ liệu lưu trong localStorage của trình duyệt trên máy này.
   - Cần Internet để tải thư viện SheetJS / FileSaver / docx (CDN) khi
     dùng chức năng Nhập/Xuất file. Các chức năng khác chạy offline.
-  - Đã bổ sung tính năng Paste (Ctrl+V) dữ liệu trực tiếp từ Excel.
   =====================================================================
 -->
 
@@ -310,6 +309,8 @@ table.stat th.h-cd{background:#ffe0e0}
         <div class="actions">
           <button class="btn" id="btnImport">📥 Nhập danh sách học sinh (Excel)</button>
           <button class="btn small" id="btnTemplate" title="Tải file Excel mẫu">Tải file mẫu</button>
+          <button class="btn" id="btnImportGrades" title="Nhập điểm ĐĐGtx, ĐĐGgk, ĐĐGck từ file Excel">📝 Nhập bảng điểm (Excel)</button>
+          <button class="btn small" id="btnGradeTemplate" title="Tải file Excel mẫu bảng điểm của lớp đang chọn">Mẫu bảng điểm</button>
           <button class="btn green" id="btnExportXlsx">📤 Xuất bảng điểm (Excel)</button>
           <button class="btn word" id="btnExportDocx">📄 Xuất báo cáo (Word)</button>
         </div>
@@ -361,11 +362,11 @@ table.stat th.h-cd{background:#ffe0e0}
               <div class="table-wrap" id="tableWrap"></div>
 
               <p class="hint">
-                <b>Mẹo nhập điểm:</b> Có thể copy nhiều cột, nhiều dòng từ Excel rồi <b>nhấn Ctrl+V vào ô đầu tiên</b> để dán nhanh.<br>
                 <b>Cách tính (TT 22/2021):</b> ĐTBmhk = (TĐĐGtx + 2×ĐĐGgk + 3×ĐĐGck) ÷ (số ĐĐGtx + 5) ·
                 ĐTBmCN = (ĐTBmHKI + 2×ĐTBmHKII) ÷ 3 · làm tròn 1 chữ số thập phân.<br>
                 <b>Xếp loại môn:</b> Tốt ≥ 8,0 · Khá ≥ 6,5 · Đạt ≥ 5,0 · Chưa đạt &lt; 5,0.
                 ĐTB học kỳ chỉ được tính khi đã nhập ĐĐGgk và ĐĐGck; ĐTB cả năm cần đủ ĐTB của 2 học kỳ.<br>
+                <b>Mẹo nhập:</b> gõ điểm rồi nhấn <kbd>Enter</kbd> để xuống dòng dưới, dùng <kbd>↑</kbd> <kbd>↓</kbd> để di chuyển. Có thể gõ dấu phẩy hoặc dấu chấm (7,5 hoặc 7.5).
               </p>
             </div>
           </div>
@@ -404,6 +405,7 @@ table.stat th.h-cd{background:#ffe0e0}
 
 <!-- input ẩn để chọn file -->
 <input type="file" id="fileImport" accept=".xlsx,.xls" hidden>
+<input type="file" id="fileGrades" accept=".xlsx,.xls" hidden>
 <input type="file" id="fileRestore" accept=".json,application/json" hidden>
 
 <!-- ============ THƯ VIỆN NGOÀI (CDN) ============ -->
@@ -487,7 +489,7 @@ function download(blob, name) {
    Thứ tự dấu thanh: không dấu, huyền, sắc, hỏi, ngã, nặng
    Cách so sánh   : xét chữ cái trước; chỉ khi hai từ giống hệt nhau về chữ cái mới xét dấu thanh.
    (Tự cài đặt thay vì dùng localeCompare để kết quả giống nhau trên mọi trình duyệt.) */
-const VI_LETTERS = ['a', 'ă', 'â', 'b', 'c', 'd', 'đ', 'e', 'ê', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'ô', 'ơ', 'p', 'q', 'r', 's', 't', 'u', 'ư', 'v', 'x', 'y', 'z'];
+const VI_LETTERS = ['a', 'ă', 'â', 'b', 'c', 'd', 'đ', 'e', 'ê', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'ô', 'ơ', 'p', 'q', 'r', 's', 't', 'u', 'ư', 'v', 'w', 'x', 'y', 'z'];
 const VI_TONE = { '\u0300': 1, '\u0301': 2, '\u0309': 3, '\u0303': 4, '\u0323': 5 };   // huyền, sắc, hỏi, ngã, nặng
 
 /* Tách chuỗi thành các ký tự gốc + dấu phụ (â, ê, ô, ă, ơ, ư) + dấu thanh */
@@ -770,92 +772,6 @@ function setField(st, f, v) { const p = f.split('.'); if (p.length === 1) st[f] 
 
 function bindTable() {
   const wrap = $('#tableWrap');
-
-  // --- SỰ KIỆN PASTE TỪ EXCEL VÀO BẢNG ĐIỂM ---
-  wrap.addEventListener('paste', e => {
-    const targetInput = e.target.closest('input.cell');
-    if (!targetInput) return;
-    
-    // Ngăn hành vi dán text mặc định vào 1 ô
-    e.preventDefault(); 
-
-    const text = (e.clipboardData || window.clipboardData).getData('text');
-    if (!text) return;
-
-    // Tách dữ liệu clipboard thành các dòng
-    const rows = text.trim().split(/\r\n|\n|\r/);
-    const startTr = targetInput.closest('tr');
-    const startTd = targetInput.closest('td');
-    if (!startTr || !startTd) return;
-
-    const tbody = startTr.parentElement;
-    const trs = Array.from(tbody.children);
-    const startRowIdx = trs.indexOf(startTr);
-    const startColIdx = startTd.cellIndex;
-
-    let changed = false;
-    const cls = curClass();
-
-    // Lặp qua từng dòng copy từ Excel
-    for (let i = 0; i < rows.length; i++) {
-      const cols = rows[i].split('\t'); // Dữ liệu Excel phân tách các cột bằng tab
-      const tr = trs[startRowIdx + i];
-      if (!tr) break; // Hết dòng trên web thì dừng
-
-      const st = cls.students.find(s => s.id === tr.dataset.sid);
-      if (!st) continue;
-
-      let rowChanged = false;
-
-      // Lặp qua từng cột copy từ Excel
-      for (let j = 0; j < cols.length; j++) {
-        const td = tr.cells[startColIdx + j];
-        if (!td) break; // Hết cột trên web thì dừng
-
-        const inp = td.querySelector('input.cell');
-        if (!inp) continue; // Bỏ qua nếu ô đó không phải là ô nhập liệu (ví dụ ô ĐTB, Xếp loại)
-
-        const f = inp.dataset.f;
-        let val = cols[j].trim();
-
-        // Xử lý nếu dán vào cột Tên hoặc Ngày sinh
-        if (f === 'name' || f === 'dob') {
-          st[f] = val.replace(/\s+/g, ' ');
-          inp.value = st[f];
-          rowChanged = true;
-        } 
-        // Xử lý nếu dán vào cột Điểm số
-        else {
-          let numVal = parseScore(val.replace(',', '.'));
-          if (val === '') {
-            setField(st, f, ''); // Xóa điểm nếu ô excel rỗng
-            inp.value = '';
-            inp.classList.remove('low');
-            rowChanged = true;
-          } else if (!Number.isNaN(numVal)) {
-            setField(st, f, numVal);
-            inp.value = fmtIn(numVal);
-            inp.classList.toggle('low', isNum(numVal) && numVal < 5);
-            rowChanged = true;
-          }
-        }
-      }
-
-      // Cập nhật lại ĐTB và Xếp loại cho dòng vừa thay đổi
-      if (rowChanged) {
-        refreshRow(tr, st);
-        changed = true;
-      }
-    }
-
-    // Nếu có dữ liệu thay đổi, tiến hành lưu và cập nhật thống kê
-    if (changed) {
-      renderClassSummary();
-      saveDB();
-      toast('Đã dán (paste) dữ liệu thành công!', 'ok');
-    }
-  });
-  // --- KẾT THÚC SỰ KIỆN PASTE ---
 
   wrap.addEventListener('change', e => {
     const inp = e.target.closest('input.cell'); if (!inp) return;
@@ -1178,6 +1094,143 @@ function openExportExcelModal() {
   });
 }
 
+/* ---------- NHẬP BẢNG ĐIỂM TỪ EXCEL ----------
+   Đọc file có các cột ĐĐGtx1…, ĐĐGgk, ĐĐGck theo từng học kỳ — đúng định dạng file "Xuất bảng điểm"
+   của phần mềm (có thể xuất → sửa điểm trong Excel → nhập lại). Cột ĐTB / Xếp loại do phần mềm tự tính nên bị bỏ qua.
+   Học sinh được nhận diện theo Họ tên (kèm Ngày sinh nếu trùng tên); chưa có trong lớp thì thêm mới. */
+function parseGradeRows(rows) {
+  const kind = t => {
+    const m = t.match(/^(?:ddg)?tx(\d)$/);
+    if (m) return +m[1] - 1 < MAX_TX ? { f: 'tx', i: +m[1] - 1 } : null;
+    if (/^(?:ddg)?gk$|giuaky/.test(t)) return { f: 'gk' };
+    if (/^(?:ddg)?ck$|cuoiky/.test(t)) return { f: 'ck' };
+    return null;
+  };
+  const lab = r => (rows[r] || []).map(normKey);
+  let h = -1;
+  for (let i = 0; i < Math.min(rows.length, 20); i++) if (lab(i).some(t => kind(t))) { h = i; break; }
+  if (h < 0) return null;
+  const cur = lab(h), top = lab(h - 1), head = cur.map((t, j) => t || top[j] || '');
+
+  // Các cột điểm: học kỳ lấy từ hàng "HỌC KỲ I / II" phía trên; nếu không có thì suy ra theo thứ tự lặp lại của cột
+  const cols = []; let term = '', seen = {}, cnt = 0, maxTx = 0;
+  for (let j = 0; j < Math.max(cur.length, top.length); j++) {
+    const tp = top[j] || '';
+    if (/^(hocky|hk)(i|1)$/.test(tp)) term = 'hk1';
+    else if (/^(hocky|hk)(ii|2)$/.test(tp)) term = 'hk2';
+    else if (/^(canam|cn)$/.test(tp)) term = 'cn';
+    const k = kind(cur[j] || ''); if (!k) continue;
+    let t = term;
+    if (!t) {
+      const key = k.f + (k.i == null ? '' : k.i);
+      if (seen[key]) { cnt++; seen = {}; }
+      seen[key] = 1; t = cnt === 0 ? 'hk1' : cnt === 1 ? 'hk2' : '';
+    }
+    if (t !== 'hk1' && t !== 'hk2') continue;
+    if (k.f === 'tx') maxTx = Math.max(maxTx, k.i + 1);
+    cols.push({ j, t, f: k.f, i: k.i });
+  }
+
+  // Các cột thông tin học sinh
+  const id = { name: -1, ho: -1, ten: -1, dob: -1, cls: -1 };
+  head.forEach((t, j) => {
+    if (t.includes('ngaysinh') || t === 'ns') id.dob = j;
+    else if (t === 'lop' || t === 'tenlop') id.cls = j;
+    else if (t.includes('hoten') || t.includes('hovaten') || t.includes('tenhocsinh')) id.name = j;
+    else if (t === 'hodem' || t === 'ho' || t === 'hovadem') id.ho = j;
+    else if (t === 'ten') id.ten = j;
+  });
+  if (id.name < 0 && id.ho < 0 && id.ten < 0) id.name = typeof (rows[h + 1] || [])[0] === 'number' ? 1 : 0;
+
+  const students = [];
+  for (let r = h + 1; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const name = (id.name >= 0 ? String(row[id.name] == null ? '' : row[id.name]) : String(row[id.ho] || '') + ' ' + String(row[id.ten] || '')).replace(/\s+/g, ' ').trim();
+    if (!name) continue;
+    students.push({ name, row, dob: id.dob >= 0 ? fmtDob(row[id.dob]) : '', cls: id.cls >= 0 ? String(row[id.cls] == null ? '' : row[id.cls]).trim() : '' });
+  }
+  // Tên lớp lấy từ dòng tiêu đề "BẢNG ĐIỂM MÔN … - LỚP 10A1" (nếu có)
+  const tm = String((rows[0] || [])[0] || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/.*\blop\s+(\S.*)$/i);
+  return { cols, maxTx, students, title: tm ? tm[1].trim() : '' };
+}
+
+async function handleGradeFile(file) {
+  if (!hasXLSX()) return toast('Không tải được thư viện SheetJS. Hãy kiểm tra kết nối Internet rồi tải lại trang.', 'err', 5000);
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const W = JSON.parse(JSON.stringify(DB));                       // làm việc trên bản sao, chỉ áp dụng khi người dùng đồng ý
+    const cur = W.classes.find(c => c.id === W.currentClassId);
+    const low = x => String(x).trim().toLowerCase();
+    const findCls = n => W.classes.find(c => low(c.name) === low(n)) || W.classes.find(c => low(n).startsWith(low(c.name) + ' - '));
+    const R = { sheets: 0, stu: 0, add: 0, cells: 0, over: 0, bad: 0, newCls: 0, grown: 0 }, touched = [];
+
+    wb.SheetNames.forEach(sn => {
+      const g = parseGradeRows(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' }));
+      if (!g || !g.students.length) return;
+      R.sheets++;
+      const single = wb.SheetNames.length === 1, used = new Set();
+      g.students.forEach(item => {
+        const cn = item.cls || g.title || (single && cur ? cur.name : sn);
+        let cls = findCls(cn);
+        if (!cls) {
+          cls = { id: uid(), name: cn, subject: W.settings.subject || '', txCount: Math.max(2, g.maxTx || 3), students: [] };
+          W.classes.push(cls); R.newCls++;
+        }
+        if (g.maxTx > cls.txCount) { cls.txCount = g.maxTx; R.grown++; }   // tránh mất điểm ở các cột ĐĐGtx thừa
+        if (!touched.includes(cls.id)) touched.push(cls.id);
+
+        const key = normKey(item.name);
+        let cand = cls.students.filter(s => normKey(s.name) === key && !used.has(s.id));
+        if (cand.length > 1 && item.dob) { const bd = cand.filter(s => normKey(s.dob) === normKey(item.dob)); if (bd.length) cand = bd; }
+        let st = cand[0];
+        const hasScore = g.cols.some(c => parseScore(item.row[c.j]) !== '');
+        if (!st) {
+          if (!hasScore) return;                                   // dòng không có điểm (VD: chữ ký, ghi chú) → bỏ qua
+          st = newStudent(item.name, item.dob); cls.students.push(st); R.add++;
+        } else if (!st.dob && item.dob) st.dob = item.dob;
+        used.add(st.id); R.stu++;
+
+        g.cols.forEach(c => {
+          if (c.f === 'tx' && c.i >= cls.txCount) return;
+          const v = parseScore(item.row[c.j]);
+          if (v === '') return;                                    // ô trống không ghi đè điểm cũ
+          if (Number.isNaN(v)) { R.bad++; return; }
+          const path = c.t + (c.f === 'tx' ? '.tx.' + c.i : '.' + c.f), old = getField(st, path);
+          if (isNum(old) && old !== v) R.over++;
+          setField(st, path, v); R.cells++;
+        });
+      });
+    });
+
+    if (!R.sheets) return toast('Không tìm thấy cột điểm (ĐĐGtx, ĐĐGgk, ĐĐGck) trong file. Hãy dùng file xuất từ phần mềm hoặc bấm “Mẫu bảng điểm”.', 'warn', 6500);
+    if (!R.cells) return toast('File không có ô điểm hợp lệ nào để nhập' + (R.bad ? ' (' + R.bad + ' ô không phải số từ 0 đến 10)' : '') + '.', 'warn', 5000);
+
+    const msg = 'Sẽ nhập ' + R.cells + ' ô điểm cho ' + R.stu + ' học sinh (' + touched.length + ' lớp)' +
+      (R.add ? ', thêm mới ' + R.add + ' học sinh' : '') + (R.newCls ? ', tạo mới ' + R.newCls + ' lớp' : '') + '.' +
+      (R.over ? '\n⚠ ' + R.over + ' ô điểm sẽ GHI ĐÈ điểm đang có.' : '') +
+      (R.bad ? '\n⚠ Bỏ qua ' + R.bad + ' ô không hợp lệ (không phải số từ 0 đến 10).' : '') + '\n\nTiếp tục?';
+    if (!confirm(msg)) return;
+
+    if (W.settings.autoSort) touched.forEach(id => { const c = W.classes.find(x => x.id === id); if (c) sortClassStudents(c); });
+    W.currentClassId = touched[0];
+    DB = W; saveDB(true); renderAll();
+    toast('Đã nhập điểm: ' + R.cells + ' ô cho ' + R.stu + ' học sinh.' + (R.grown ? ' Đã tăng số cột ĐĐGtx của lớp cho khớp với file.' : ''), 'ok', 5000);
+    if (R.newCls) toast('Hãy vào “Sửa lớp” để kiểm tra Môn học của lớp mới.', 'warn', 6000);
+  } catch (err) {
+    console.error(err);
+    toast('Không đọc được file Excel. Hãy dùng file .xlsx đúng định dạng.', 'err', 5000);
+  }
+}
+
+/* File mẫu: bảng điểm trống của lớp đang chọn (đã có sẵn họ tên, ngày sinh) */
+function downloadGradeTemplate() {
+  if (!hasXLSX()) return toast('Không tải được thư viện SheetJS. Hãy kiểm tra kết nối Internet.', 'err', 5000);
+  const c = curClass(); if (!c) return toast('Hãy chọn hoặc tạo một lớp trước khi tải mẫu bảng điểm.', 'warn');
+  const blank = Object.assign({}, c, { students: c.students.map(s => newStudent(s.name, s.dob)) });
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, classSheet(blank), 'BangDiem');
+  download(new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/octet-stream' }), 'Mau_bang_diem_' + fileSafe(c.name) + '.xlsx');
+}
+
 function loadScript(src) {
   return new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = () => res(true); s.onerror = () => res(false); document.head.appendChild(s); });
 }
@@ -1380,6 +1433,9 @@ function bindApp() {
   $('#btnImport').onclick = $('#btnImport2').onclick = triggerImport;
   $('#btnTemplate').onclick = downloadTemplate;
   $('#fileImport').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleImportFile(f); };
+  $('#btnImportGrades').onclick = () => { if (!hasXLSX()) return toast('Không tải được thư viện SheetJS. Hãy kiểm tra kết nối Internet.', 'err', 5000); $('#fileGrades').click(); };
+  $('#btnGradeTemplate').onclick = downloadGradeTemplate;
+  $('#fileGrades').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) handleGradeFile(f); };
   $('#btnExportXlsx').onclick = openExportExcelModal;
   $('#btnExportDocx').onclick = exportWord;
 
