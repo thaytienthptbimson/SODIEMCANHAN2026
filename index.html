@@ -14,6 +14,7 @@
   - Dữ liệu lưu trong localStorage của trình duyệt trên máy này.
   - Cần Internet để tải thư viện SheetJS / FileSaver / docx (CDN) khi
     dùng chức năng Nhập/Xuất file. Các chức năng khác chạy offline.
+  - Đã bổ sung tính năng Paste (Ctrl+V) dữ liệu trực tiếp từ Excel.
   =====================================================================
 -->
 
@@ -360,11 +361,11 @@ table.stat th.h-cd{background:#ffe0e0}
               <div class="table-wrap" id="tableWrap"></div>
 
               <p class="hint">
+                <b>Mẹo nhập điểm:</b> Có thể copy nhiều cột, nhiều dòng từ Excel rồi <b>nhấn Ctrl+V vào ô đầu tiên</b> để dán nhanh.<br>
                 <b>Cách tính (TT 22/2021):</b> ĐTBmhk = (TĐĐGtx + 2×ĐĐGgk + 3×ĐĐGck) ÷ (số ĐĐGtx + 5) ·
                 ĐTBmCN = (ĐTBmHKI + 2×ĐTBmHKII) ÷ 3 · làm tròn 1 chữ số thập phân.<br>
                 <b>Xếp loại môn:</b> Tốt ≥ 8,0 · Khá ≥ 6,5 · Đạt ≥ 5,0 · Chưa đạt &lt; 5,0.
                 ĐTB học kỳ chỉ được tính khi đã nhập ĐĐGgk và ĐĐGck; ĐTB cả năm cần đủ ĐTB của 2 học kỳ.<br>
-                <b>Mẹo nhập:</b> gõ điểm rồi nhấn <kbd>Enter</kbd> để xuống dòng dưới, dùng <kbd>↑</kbd> <kbd>↓</kbd> để di chuyển. Có thể gõ dấu phẩy hoặc dấu chấm (7,5 hoặc 7.5).
               </p>
             </div>
           </div>
@@ -486,7 +487,7 @@ function download(blob, name) {
    Thứ tự dấu thanh: không dấu, huyền, sắc, hỏi, ngã, nặng
    Cách so sánh   : xét chữ cái trước; chỉ khi hai từ giống hệt nhau về chữ cái mới xét dấu thanh.
    (Tự cài đặt thay vì dùng localeCompare để kết quả giống nhau trên mọi trình duyệt.) */
-const VI_LETTERS = ['a', 'ă', 'â', 'b', 'c', 'd', 'đ', 'e', 'ê', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'ô', 'ơ', 'p', 'q', 'r', 's', 't', 'u', 'ư', 'v', 'w', 'x', 'y', 'z'];
+const VI_LETTERS = ['a', 'ă', 'â', 'b', 'c', 'd', 'đ', 'e', 'ê', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'ô', 'ơ', 'p', 'q', 'r', 's', 't', 'u', 'ư', 'v', 'x', 'y', 'z'];
 const VI_TONE = { '\u0300': 1, '\u0301': 2, '\u0309': 3, '\u0303': 4, '\u0323': 5 };   // huyền, sắc, hỏi, ngã, nặng
 
 /* Tách chuỗi thành các ký tự gốc + dấu phụ (â, ê, ô, ă, ơ, ư) + dấu thanh */
@@ -769,6 +770,92 @@ function setField(st, f, v) { const p = f.split('.'); if (p.length === 1) st[f] 
 
 function bindTable() {
   const wrap = $('#tableWrap');
+
+  // --- SỰ KIỆN PASTE TỪ EXCEL VÀO BẢNG ĐIỂM ---
+  wrap.addEventListener('paste', e => {
+    const targetInput = e.target.closest('input.cell');
+    if (!targetInput) return;
+    
+    // Ngăn hành vi dán text mặc định vào 1 ô
+    e.preventDefault(); 
+
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    if (!text) return;
+
+    // Tách dữ liệu clipboard thành các dòng
+    const rows = text.trim().split(/\r\n|\n|\r/);
+    const startTr = targetInput.closest('tr');
+    const startTd = targetInput.closest('td');
+    if (!startTr || !startTd) return;
+
+    const tbody = startTr.parentElement;
+    const trs = Array.from(tbody.children);
+    const startRowIdx = trs.indexOf(startTr);
+    const startColIdx = startTd.cellIndex;
+
+    let changed = false;
+    const cls = curClass();
+
+    // Lặp qua từng dòng copy từ Excel
+    for (let i = 0; i < rows.length; i++) {
+      const cols = rows[i].split('\t'); // Dữ liệu Excel phân tách các cột bằng tab
+      const tr = trs[startRowIdx + i];
+      if (!tr) break; // Hết dòng trên web thì dừng
+
+      const st = cls.students.find(s => s.id === tr.dataset.sid);
+      if (!st) continue;
+
+      let rowChanged = false;
+
+      // Lặp qua từng cột copy từ Excel
+      for (let j = 0; j < cols.length; j++) {
+        const td = tr.cells[startColIdx + j];
+        if (!td) break; // Hết cột trên web thì dừng
+
+        const inp = td.querySelector('input.cell');
+        if (!inp) continue; // Bỏ qua nếu ô đó không phải là ô nhập liệu (ví dụ ô ĐTB, Xếp loại)
+
+        const f = inp.dataset.f;
+        let val = cols[j].trim();
+
+        // Xử lý nếu dán vào cột Tên hoặc Ngày sinh
+        if (f === 'name' || f === 'dob') {
+          st[f] = val.replace(/\s+/g, ' ');
+          inp.value = st[f];
+          rowChanged = true;
+        } 
+        // Xử lý nếu dán vào cột Điểm số
+        else {
+          let numVal = parseScore(val.replace(',', '.'));
+          if (val === '') {
+            setField(st, f, ''); // Xóa điểm nếu ô excel rỗng
+            inp.value = '';
+            inp.classList.remove('low');
+            rowChanged = true;
+          } else if (!Number.isNaN(numVal)) {
+            setField(st, f, numVal);
+            inp.value = fmtIn(numVal);
+            inp.classList.toggle('low', isNum(numVal) && numVal < 5);
+            rowChanged = true;
+          }
+        }
+      }
+
+      // Cập nhật lại ĐTB và Xếp loại cho dòng vừa thay đổi
+      if (rowChanged) {
+        refreshRow(tr, st);
+        changed = true;
+      }
+    }
+
+    // Nếu có dữ liệu thay đổi, tiến hành lưu và cập nhật thống kê
+    if (changed) {
+      renderClassSummary();
+      saveDB();
+      toast('Đã dán (paste) dữ liệu thành công!', 'ok');
+    }
+  });
+  // --- KẾT THÚC SỰ KIỆN PASTE ---
 
   wrap.addEventListener('change', e => {
     const inp = e.target.closest('input.cell'); if (!inp) return;
